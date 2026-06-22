@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Penguin Town 3D</title>
+  </head>
+  <body>
+    <!-- top-left heads up display -->
+    <div id="hud">
+      <div class="brand">🐧 PENGUIN&nbsp;TOWN</div>
+      <div id="location">Snowy Plaza</div>
+    </div>
+
+    <!-- top-right status -->
+    <div id="status">
+      <div class="status-pill"><span class="dot"></span><span id="online-count">1</span> waddling</div>
+      <div class="status-pill">❄️ <span id="snowball-count">0</span> snowballs</div>
+    </div>
+
+    <!-- center aiming reticle -->
+    <div id="crosshair"></div>
+
+    <!-- transient toast messages -->
+    <div id="toast"></div>
+
+    <!-- bottom emote / action bar -->
+    <div id="action-bar"></div>
+
+    <!-- bottom-left controls help -->
+    <div id="controls">
+      <span><b>WASD</b> move</span>
+      <span><b>Space</b> jump</span>
+      <span><b>Shift</b> sprint</span>
+      <span><b>Right-drag</b> look</span>
+      <span><b>Wheel</b> zoom</span>
+      <span><b>Left-click</b> action</span>
+      <span><b>1–5</b> emote</span>
+    </div>
+
+    <!-- welcome / customization card -->
+    <div id="overlay">
+      <div id="start-card">
+        <div class="card-glow"></div>
+        <div class="card-icon">🐧</div>
+        <h1>Welcome to Penguin&nbsp;Town</h1>
+        <p>A cozy little snowy hangout. Waddle around, meet the locals, and toss a few snowballs.</p>
+
+        <label class="field-label" for="penguin-name">Your penguin's name</label>
+        <input id="penguin-name" maxlength="14" placeholder="Waddles" autocomplete="off" />
+
+        <div class="field-label">Pick your color</div>
+        <div id="color-swatches"></div>
+
+        <button id="start-button">Enter the town</button>
+        <small>An original snowy social-world prototype. No Club Penguin assets, names, or map layouts are used.</small>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
