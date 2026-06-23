@@ -1455,6 +1455,14 @@ hpLabel.style.cssText = 'position:absolute;inset:0;display:flex;align-items:cent
 hpBar.appendChild(hpLabel);
 document.body.appendChild(hpBar);
 
+// slim stamina bar (only shown when not full, to keep the HUD clean)
+const staminaBar = document.createElement('div');
+staminaBar.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:6;width:220px;height:7px;border-radius:999px;background:rgba(11,76,112,.4);border:1px solid rgba(255,255,255,.35);overflow:hidden;display:none;opacity:0;transition:opacity .25s';
+const staminaFill = document.createElement('div');
+staminaFill.style.cssText = 'height:100%;width:100%;background:#7cd6ff;transition:width .1s,background .2s';
+staminaBar.appendChild(staminaFill);
+document.body.appendChild(staminaBar);
+
 const vignette = document.createElement('div');
 vignette.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(170,0,0,.8));transition:opacity .08s';
 document.body.appendChild(vignette);
@@ -2858,6 +2866,16 @@ function moveReticle(px, py) {
   ui.crosshair.style.top = py + 'px';
 }
 
+// sprint is a toggle (tap Shift to run, tap again to walk)
+let sprintOn = false;
+// stamina — intentionally very forgiving: long sprints, quick recovery
+const STAMINA_MAX = 100;
+const STAMINA_DRAIN = 15;       // ~6.5s of continuous sprint from full
+const STAMINA_REGEN = 20;       // refills in ~5s when you ease off
+const STAMINA_RECOVER = 35;     // can sprint again once back above this after gassing out
+let stamina = STAMINA_MAX;
+let exhausted = false;
+
 // jump / vertical physics
 let velY = 0;
 let onGround = true;
@@ -2999,6 +3017,10 @@ document.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (!started) return;
   if (e.code === 'Space') e.preventDefault();
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
+    if (exhausted) { toast('😮‍💨 Catch your breath…'); }
+    else { sprintOn = !sprintOn; toast(sprintOn ? '🏃 Sprint on' : '🚶 Sprint off'); }
+  }
   if (e.code === 'KeyR' && hasGun) reloadGun();
   if (e.code === 'KeyE') buyPistol();
   if (e.code === 'KeyF') tryBuyUpgrade();
@@ -3067,8 +3089,7 @@ function move(dt) {
     velocity.multiplyScalar(Math.exp(-12 * dt));
   } else {
     desired.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    const sprint = keys.has('ShiftLeft') || keys.has('ShiftRight');
-    const speed = sprint ? 9 : 5;
+    const speed = (sprintOn && stamina > 0) ? 9 : 5;
     velocity.lerp(desired.multiplyScalar(speed), 1 - Math.exp(-12 * dt));
     const targetYaw = Math.atan2(velocity.x, velocity.z);
     player.group.rotation.y = lerpAngle(player.group.rotation.y, targetYaw, 1 - Math.exp(-12 * dt));
@@ -3090,6 +3111,26 @@ function move(dt) {
   } else {
     stepTimer = 0;
   }
+
+  // ---- stamina (forgiving): only drains while actually sprint-running ----
+  const sprintingNow = sprintOn && moving && onGround && stamina > 0;
+  if (sprintingNow) {
+    stamina = Math.max(0, stamina - STAMINA_DRAIN * dt);
+    if (stamina === 0) { sprintOn = false; exhausted = true; toast('😮‍💨 Out of breath!'); }
+  } else {
+    stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN * dt);
+    if (exhausted && stamina >= STAMINA_RECOVER) exhausted = false;
+  }
+  updateStaminaBar();
+}
+
+function updateStaminaBar() {
+  const f = stamina / STAMINA_MAX;
+  staminaFill.style.width = (f * 100) + '%';
+  staminaFill.style.background = exhausted ? '#ff7b54' : f > 0.4 ? '#7cd6ff' : '#ffd23f';
+  const show = started && f < 0.999;
+  staminaBar.style.display = show ? 'block' : 'none';
+  staminaBar.style.opacity = show ? '1' : '0';
 }
 function lerpAngle(a, b, t) {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
@@ -3169,6 +3210,7 @@ function respawnPlayer() {
   damageFlash = 0;
   vignette.style.opacity = '0';
   frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
+  stamina = STAMINA_MAX; exhausted = false;
   let sx = 0, sz = 0, found = false;
   for (const [, r] of remotePlayers) {
     r.pen.group.visible = true;             // un-hide anyone we were POV-spectating
