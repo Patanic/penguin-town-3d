@@ -146,6 +146,8 @@ const sfx = (() => {
     groan() { go((t) => { tone(80 + Math.random() * 45, t, 0.5, 'sawtooth', 0.1, 52); tone(120 + Math.random() * 40, t, 0.4, 'sine', 0.06, 70); }); },
     snowball() { go((t) => noise(0.1, t, 0.18, 'highpass', 1500)); },
     splat() { go((t) => { noise(0.16, t, 0.3, 'lowpass', 1200); tone(180, t, 0.1, 'sawtooth', 0.12, 80); }); },
+    iceCrack() { go((t) => { noise(0.09, t, 0.4, 'highpass', 4200, 0.8); tone(1900, t, 0.06, 'triangle', 0.2, 2700); tone(950, t + 0.03, 0.1, 'triangle', 0.13, 1500); }); },
+    freeze() { go((t) => { tone(1500, t, 0.55, 'sine', 0.2, 320); noise(0.45, t, 0.2, 'bandpass', 3000, 5); tone(720, t + 0.05, 0.45, 'triangle', 0.13, 220); }); },
     jump() { go((t) => tone(320, t, 0.12, 'sine', 0.16, 620)); },
     land() { go((t) => { noise(0.1, t, 0.22, 'lowpass', 600); tone(140, t, 0.08, 'sine', 0.12, 80); }); },
     step(alt) { go((t) => noise(0.05, t, 0.12, 'lowpass', alt ? 520 : 380, 0.8)); },
@@ -1896,6 +1898,7 @@ function damagePlayer(amount) {
 function endGame() {
   gameOver = true;
   started = false;
+  frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
   sfx.death();
   sfx.calmMusic();
   document.exitPointerLock?.();
@@ -2516,6 +2519,156 @@ function updateSpits(dt) {
   }
 }
 
+// =====================================================================
+//  Boss abilities — freezing ice bombardment + hurling fast penguins
+// =====================================================================
+const ICE_GRAV = 16;
+const CRATER_R = 2.4;       // freeze radius
+const CRATER_ARM = 0.45;    // brief telegraph before it can freeze you
+const CRATER_LIFE = 7;      // total lifetime on the ground
+const FREEZE_TIME = 2.4;    // seconds locked in place
+let frozenTimer = 0;
+let nextCraterId = 1;
+
+// translucent ice block that encases the local penguin while frozen
+const playerIce = mesh(
+  new THREE.BoxGeometry(1.7, 2.3, 1.7),
+  new THREE.MeshStandardMaterial({ color: 0xbfeaff, transparent: true, opacity: 0.42, roughness: 0.1, metalness: 0.1, emissive: 0x5fb0e6, emissiveIntensity: 0.35 }),
+  false, false
+);
+playerIce.position.y = 1.05;
+playerIce.visible = false;
+player.group.add(playerIce);
+
+// frosty screen overlay shown while frozen
+const frostOverlay = document.createElement('div');
+frostOverlay.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(120% 120% at 50% 50%, transparent 28%, rgba(150,220,255,.5) 78%, rgba(205,240,255,.85));transition:opacity .15s';
+document.body.appendChild(frostOverlay);
+
+function freezePlayer() {
+  if (frozenTimer > 0 || gameOver || spectating || !started) return;
+  frozenTimer = FREEZE_TIME;
+  velocity.set(0, 0, 0);
+  playerIce.visible = true;
+  frostOverlay.style.opacity = '1';
+  sfx.freeze();
+  toast('🧊 Frozen solid! Mash WASD to break free!');
+}
+// freeze the local player if they're standing on an armed crater at (x,z)
+function tryFreezeAt(x, z) {
+  if (frozenTimer > 0 || gameOver || spectating || !started) return;
+  const p = player.group.position;
+  if (Math.hypot(p.x - x, p.z - z) < CRATER_R - 0.3) freezePlayer();
+}
+
+// --- ice balls (the boss lobs these to seed craters near the player) ---
+const iceBalls = [];
+function spawnIceBall(from, tx, tz) {
+  const m = mesh(
+    new THREE.IcosahedronGeometry(0.42, 0),
+    new THREE.MeshStandardMaterial({ color: 0xcdeeff, emissive: 0x4fa6e0, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.1 }),
+    false, false
+  );
+  m.position.copy(from);
+  world.add(m);
+  const dx = tx - from.x, dz = tz - from.z;
+  const dist = Math.hypot(dx, dz) || 1;
+  const T = clamp(dist / 18, 0.6, 1.7);             // flight time
+  const vel = new THREE.Vector3(dx / T, 0, dz / T);
+  vel.y = 0.5 * ICE_GRAV * T - from.y / T;          // arc that returns to the ground
+  iceBalls.push({ m, vel, tx, tz, life: 0, spin: 4 + Math.random() * 5 });
+}
+function updateIceBalls(dt) {
+  for (let i = iceBalls.length - 1; i >= 0; i--) {
+    const b = iceBalls[i];
+    b.life += dt;
+    b.vel.y -= ICE_GRAV * dt;
+    b.m.position.addScaledVector(b.vel, dt);
+    b.m.rotation.x += b.spin * dt; b.m.rotation.y += b.spin * 0.7 * dt;
+    if (b.m.position.y <= 0.12 || b.life > 4) {
+      spawnIceCrater(b.tx, b.tz);
+      world.remove(b.m); iceBalls.splice(i, 1);
+    }
+  }
+}
+
+// --- ice craters (the actual freeze hazard) ---
+const iceCraters = [];
+function makeCraterMesh() {
+  const g = new THREE.Group();
+  const disc = mesh(new THREE.CircleGeometry(CRATER_R, 26), new THREE.MeshStandardMaterial({ color: 0xa9e4ff, emissive: 0x3f8fd0, emissiveIntensity: 0.4, transparent: true, opacity: 0.8, roughness: 0.2 }), false, false);
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.07; g.add(disc);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + Math.random();
+    const r = CRATER_R * (0.35 + Math.random() * 0.55);
+    const shard = mesh(new THREE.ConeGeometry(0.16, 0.5 + Math.random() * 0.6, 5), new THREE.MeshStandardMaterial({ color: 0xe2f5ff, emissive: 0x6fb6e6, emissiveIntensity: 0.45, transparent: true, opacity: 0.9 }), false, false);
+    shard.position.set(Math.cos(a) * r, 0.25, Math.sin(a) * r);
+    shard.rotation.z = (Math.random() - 0.5) * 0.6;
+    g.add(shard);
+  }
+  return g;
+}
+function setCraterOpacity(group, o) {
+  group.traverse((c) => { if (c.material) c.material.opacity = (c.geometry && c.geometry.type === 'ConeGeometry' ? 0.9 : 0.8) * o; });
+}
+function spawnIceCrater(x, z) {
+  const group = makeCraterMesh();
+  group.position.set(x, 0, z);
+  world.add(group);
+  iceCraters.push({ id: nextCraterId++, x, z, group, life: 0 });
+  sfx.iceCrack();
+}
+function craterArmed(life) { return life > CRATER_ARM && life < CRATER_LIFE - 0.8; }
+function updateIceCraters(dt) {
+  for (let i = iceCraters.length - 1; i >= 0; i--) {
+    const c = iceCraters[i];
+    c.life += dt;
+    const fade = c.life < CRATER_ARM ? c.life / CRATER_ARM
+      : c.life > CRATER_LIFE - 1 ? Math.max(0, CRATER_LIFE - c.life) : 1;
+    setCraterOpacity(c.group, fade);
+    if (c.life >= CRATER_LIFE) { world.remove(c.group); iceCraters.splice(i, 1); continue; }
+    if (craterArmed(c.life)) tryFreezeAt(c.x, c.z);
+  }
+}
+
+// the boss hurls a fast penguin on a ballistic arc at the player
+function throwPenguin(from, tgt) {
+  const hp = Math.max(1, zombieHpForRound(round) - 1);
+  const p = addNPC({ color: 0xc2d27a, x: from.x, z: from.z, zombie: true, type: 'runner', scale: 0.78, hp, speedBonus: 3.0, cashReward: 12, contactDmg: 5 });
+  const y0 = (from.y || 3) + 1.4;
+  p.group.position.y = y0;
+  const dx = tgt.x - from.x, dz = tgt.z - from.z;
+  const dist = Math.hypot(dx, dz) || 1;
+  const T = clamp(dist / 15, 0.5, 1.4);
+  p.flying = true;
+  p.fvx = dx / T; p.fvz = dz / T;
+  p.fvy = 0.5 * ICE_GRAV * T + 3;
+  sfx.groan();
+}
+
+// client mirror: render the host's craters and freeze ourselves if we step in one
+const ghostCraters = new Map(); // id -> { group }
+function clientCraters() {
+  const arr = getGlobal('craters') || [];
+  const seen = new Set();
+  for (const e of arr) {
+    const [id, x, z, armed] = e;
+    seen.add(id);
+    let gc = ghostCraters.get(id);
+    if (!gc) {
+      const group = makeCraterMesh();
+      group.position.set(x, 0, z);
+      world.add(group);
+      gc = { group };
+      ghostCraters.set(id, gc);
+    }
+    if (armed) tryFreezeAt(x, z);
+  }
+  for (const [id, gc] of ghostCraters) {
+    if (!seen.has(id)) { world.remove(gc.group); ghostCraters.delete(id); }
+  }
+}
+
 function updateWeapons(dt) {
   // pickup proximity
   if (!hasGun && shopGun.visible) {
@@ -2774,6 +2927,22 @@ function doEmote(i) {
 
 function move(dt) {
   if (!started) return;
+
+  // ---- frozen in place (boss ice crater) — can still aim/shoot, but no moving ----
+  if (frozenTimer > 0) {
+    const mashing = keys.has('KeyW') || keys.has('KeyA') || keys.has('KeyS') || keys.has('KeyD')
+      || keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight');
+    frozenTimer = Math.max(0, frozenTimer - dt * (mashing ? 2.4 : 1));
+    velocity.set(0, 0, 0);
+    moving = false;
+    velY -= GRAVITY * dt;
+    let fy = player.group.position.y + velY * dt;
+    if (fy <= 0) { fy = 0; velY = 0; onGround = true; }
+    player.group.position.y = fy;
+    if (frozenTimer === 0) { playerIce.visible = false; frostOverlay.style.opacity = '0'; }
+    return;
+  }
+
   // ---- vertical physics (jump + gravity) ----
   if (keys.has('Space') && onGround) {
     velY = JUMP_SPEED;
@@ -2889,6 +3058,7 @@ function downPlayer() {
   renderer.domElement.style.cursor = 'default';
   vignette.style.opacity = '0';
   damageFlash = 0;
+  frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
   sfx.death();
   spectateBanner.style.display = 'flex';
 }
@@ -2901,6 +3071,7 @@ function respawnPlayer() {
   updateCashHUD();
   damageFlash = 0;
   vignette.style.opacity = '0';
+  frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
   let sx = 0, sz = 0, found = false;
   for (const [, r] of remotePlayers) {
     r.pen.group.visible = true;             // un-hide anyone we were POV-spectating
@@ -3194,6 +3365,7 @@ function hostBroadcast() {
   setGlobal('ammos', ammoDrops.map((a) => [a.id, Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, a.amount]));
   setGlobal('kf', killFeed);
   setGlobal('cf', chatFeed);
+  setGlobal('craters', iceCraters.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10, craterArmed(c.life) ? 1 : 0]));
   setGlobal('env', { tod: Math.round(dayTime * 1000) / 1000, wx: Math.round(weatherCur * 100) / 100 });
 }
 
@@ -3462,6 +3634,8 @@ function enterClientMode() {
   for (const m of medpacks) world.remove(m.group); medpacks.length = 0;
   for (const a of ammoDrops) world.remove(a.group); ammoDrops.length = 0;
   for (const s of spits) world.remove(s.m); spits.length = 0;
+  for (const b of iceBalls) world.remove(b.m); iceBalls.length = 0;
+  for (const c of iceCraters) world.remove(c.group); iceCraters.length = 0;
 }
 
 // =====================================================================
@@ -3489,6 +3663,19 @@ function updateNPCs(dt, t) {
     }
 
     if (npc.hitFlash) npc.hitFlash = Math.max(0, npc.hitFlash - dt);
+
+    // a penguin tossed by the boss: ballistic arc, then resume the chase sprinting
+    if (npc.flying) {
+      npc.fvy -= ICE_GRAV * dt;
+      pos.x += npc.fvx * dt; pos.z += npc.fvz * dt; pos.y += npc.fvy * dt;
+      npc.group.rotation.x += dt * 7;
+      if (pos.y <= 0) {
+        pos.y = 0; npc.flying = false; npc.group.rotation.x = 0;
+        npc.lunge = 0.9; npc.lungeTimer = 1.4; npc.moving = true;
+        sfx.land();
+      }
+      continue;
+    }
 
     if (npc.state === 'chase') {
       // ---------- ZOMBIE: shamble toward the NEAREST player with variation ----------
@@ -3520,6 +3707,25 @@ function updateNPCs(dt, t) {
         if (npc.attackCD <= 0 && distP < 24 && distP > 3.5) {
           npc.attackCD = 2.0 + Math.random() * 1.6;
           spawnSpit(new THREE.Vector3(pos.x, pos.y + 1.7, pos.z), tgt);
+        }
+      }
+
+      // BOSS: rains freezing ice + hurls fast penguins at the player
+      if (npc.type === 'boss') {
+        npc.iceTimer = (npc.iceTimer ?? 3.5) - dt;
+        if (npc.iceTimer <= 0 && distP < 64) {
+          npc.iceTimer = 4.5 + Math.random() * 2;
+          const volley = 3 + Math.floor(round / 5);
+          for (let q = 0; q < volley; q++) {
+            const ox = (Math.random() - 0.5) * 9, oz = (Math.random() - 0.5) * 9;
+            spawnIceBall(new THREE.Vector3(pos.x, pos.y + 3.6, pos.z), tgt.x + ox, tgt.z + oz);
+          }
+          sfx.groan();
+        }
+        npc.throwTimer = (npc.throwTimer ?? 6) - dt;
+        if (npc.throwTimer <= 0 && distP < 58 && aliveZombies() < HORDE_CAP) {
+          npc.throwTimer = 6.5 + Math.random() * 3;
+          throwPenguin(pos, tgt);
         }
       }
 
@@ -3985,6 +4191,7 @@ function animate() {
     clientReadRounds();
     clientReadFeed();
     clientReadChats();
+    clientCraters();
     updateBossBarFromNet();
     flushHits();
     if (damageFlash > 0) { damageFlash = Math.max(0, damageFlash - dt * 1.6); vignette.style.opacity = String(damageFlash); }
@@ -3994,6 +4201,8 @@ function animate() {
     updateNPCs(dt, t);
     updateMedpacks(dt, t);
     updateAmmoDrops(dt, t);
+    updateIceBalls(dt);
+    updateIceCraters(dt);
     updateBossBar();
     if (role === 'host') {
       hostReadInputs();
