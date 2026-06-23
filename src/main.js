@@ -1387,9 +1387,16 @@ function addNPC({ color, hat = null, x, z, zombie = false, hp = null, speedBonus
 
 for (let i = 0; i < NPC_COUNT; i++) {
   const color = PENGUIN_COLORS[i % PENGUIN_COLORS.length].hex;
-  const angle = Math.random() * Math.PI * 2;
-  const radius = 6 + Math.random() * 30;
-  addNPC({ color, hat: hats[Math.floor(Math.random() * hats.length)], x: Math.cos(angle) * radius, z: Math.sin(angle) * radius });
+  // find an open spot so townsfolk never spawn stuck inside a building
+  let x = 0, z = 0, tries = 0;
+  do {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 6 + Math.random() * 30;
+    x = Math.cos(angle) * radius;
+    z = Math.sin(angle) * radius;
+    tries++;
+  } while (collides({ x, z }) && tries < 24);
+  addNPC({ color, hat: hats[Math.floor(Math.random() * hats.length)], x, z });
 }
 function pickWanderTarget() {
   const a = Math.random() * Math.PI * 2;
@@ -1757,14 +1764,16 @@ function aliveZombies() {
 
 // pick a valid edge spawn that isn't inside a building
 function edgeSpawnPoint() {
+  // spawn just OUTSIDE the player's wall (r=105), around the rim of the snow
+  // circle (ground radius 120) — zombies then shamble in through the wall.
   let x = 0, z = 0, tries = 0;
   do {
     const a = Math.random() * Math.PI * 2;
-    const r = 46 + Math.random() * 11;
-    x = clamp(Math.cos(a) * r, -56, 56);
-    z = clamp(Math.sin(a) * r, -56, 56);
+    const r = 108 + Math.random() * 9;
+    x = Math.cos(a) * r;
+    z = Math.sin(a) * r;
     tries++;
-  } while (collides({ x, z }) && tries < 16);
+  } while (collides({ x, z }, true) && tries < 16);
   return { x, z };
 }
 
@@ -2616,8 +2625,9 @@ function updateCamera() {
   camera.position.lerp(desiredPos, 1 - Math.exp(-18 * lastDt));
   camera.lookAt(target);
 }
-function collides(pos) {
-  if (Math.hypot(pos.x, pos.z) > 105) return true;
+function collides(pos, ignoreBoundary = false) {
+  // zombies ignore the outer wall so they can pour in from beyond the map edge
+  if (!ignoreBoundary && Math.hypot(pos.x, pos.z) > 105) return true;
   for (const s of solid) {
     if (Math.abs(pos.x - s.x) < s.hx && Math.abs(pos.z - s.z) < s.hz) return true;
   }
@@ -3411,7 +3421,7 @@ function updateNPCs(dt, t) {
           const ang = baseAng + swayOff + off;
           const step = { x: Math.sin(ang) * sp * dt, z: Math.cos(ang) * sp * dt };
           const np = pos.clone(); np.x += step.x; np.z += step.z;
-          if (!collides(np)) { pos.copy(np); npc.heading = ang; movedAny = true; break; }
+          if (!collides(np, true)) { pos.copy(np); npc.heading = ang; movedAny = true; break; }
         }
         if (movedAny) npc.stuck = Math.max(0, npc.stuck - dt * 2);
         else npc.stuck += dt;
