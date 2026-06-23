@@ -178,7 +178,6 @@ const ui = {
   startButton: document.querySelector('#start-button'),
   nameInput: document.querySelector('#penguin-name'),
   swatches: document.querySelector('#color-swatches'),
-  location: document.querySelector('#location'),
   crosshair: document.querySelector('#crosshair'),
   actionBar: document.querySelector('#action-bar'),
   online: document.querySelector('#online-count'),
@@ -309,10 +308,10 @@ const auroraMat = new THREE.ShaderMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
   side: THREE.DoubleSide,
-  uniforms: { time: { value: 0 } },
+  uniforms: { time: { value: 0 }, intensity: { value: 0.0 } },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
   fragmentShader: `
-    varying vec2 vUv; uniform float time;
+    varying vec2 vUv; uniform float time; uniform float intensity;
     void main(){
       float x = vUv.x;
       // wavy curtains drifting sideways
@@ -327,7 +326,7 @@ const auroraMat = new THREE.ShaderMaterial({
       vec3 purple = vec3(0.65, 0.4, 0.95);
       vec3 col = mix(green, teal, sin(x * 4.0 + time * 0.3) * 0.5 + 0.5);
       col = mix(col, purple, smoothstep(0.6, 1.0, x));
-      float alpha = curtain * streak * smoothstep(0.0, 0.25, vUv.y) * 0.55;
+      float alpha = curtain * streak * smoothstep(0.0, 0.25, vUv.y) * 0.55 * intensity;
       gl_FragColor = vec4(col, alpha);
     }`,
 });
@@ -336,6 +335,24 @@ aurora.position.set(0, 95, 175);
 aurora.rotation.y = Math.PI;
 aurora.rotation.x = -0.12;
 scene.add(aurora);
+
+// ---------- stars (fade in at night) ----------
+const starGeo = new THREE.BufferGeometry();
+const STAR_N = 700;
+const starPos = new Float32Array(STAR_N * 3);
+for (let i = 0; i < STAR_N; i++) {
+  // scatter across the upper sky dome
+  const u = Math.random() * Math.PI * 2;
+  const v = Math.random() * 0.7 + 0.05;          // keep them up high
+  const r = 380;
+  starPos[i * 3] = Math.cos(u) * Math.cos(v * Math.PI / 2) * r;
+  starPos[i * 3 + 1] = Math.sin(v * Math.PI / 2) * r;
+  starPos[i * 3 + 2] = Math.sin(u) * Math.cos(v * Math.PI / 2) * r;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: false });
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
 
 // ---------- drifting clouds ----------
 const cloudTex = (() => {
@@ -363,7 +380,8 @@ for (let i = 0; i < 16; i++) {
 }
 
 // ---------- lighting ----------
-scene.add(new THREE.HemisphereLight(0xeafaff, 0x6f8aa0, 2.1));
+const hemi = new THREE.HemisphereLight(0xeafaff, 0x6f8aa0, 2.1);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2cf, 2.7);
 sun.position.set(-50, 70, 30);
 sun.castShadow = true;
@@ -1911,6 +1929,7 @@ function killNPC(npc, point, headshot = false, attackerId = mpMyId()) {
   npc.deathT = 0;
   npc.tag.visible = false;
   npc.hb.sprite.visible = false;
+  dismissMpStatus();
   const mine = attackerId === mpMyId();
   if (hordeMode && intermission <= 0) zKilled++;
   // bombers detonate when they die — shoot them from a safe distance!
@@ -1926,7 +1945,7 @@ function killNPC(npc, point, headshot = false, attackerId = mpMyId()) {
     earnCash(Math.round(base * mult), point);
   } else {
     if (npc.type === 'boss') sfx.bossDeath(); // everyone hears the boss fall
-    pushKill(attackerId, base, headshot);
+    pushKill(attackerId, base, headshot, point);
   }
   if (npc === bossRef) { bossBar.style.display = 'none'; bossRef = null; }
   // random ammo drop — scarce; bigger threats are a bit more generous
@@ -2038,16 +2057,29 @@ function spawnAmmoDrop(x, z, amount) {
   if (groundAmmoTotal() >= MAP_AMMO_CAP) return;
   amount = Math.min(amount, MAP_AMMO_CAP - groundAmmoTotal());
   if (amount <= 0) return;
+  // pull edge/out-of-bounds kills back inside the wall so the drop is reachable
+  const r = Math.hypot(x, z);
+  if (r > 100) { const k = 100 / r; x *= k; z *= k; }
   const g = makeAmmoBox();
   g.position.set(x, 0, z);
   world.add(g);
-  ammoDrops.push({ id: nextNetId++, group: g, x, z, amount, bob: Math.random() * 6 });
+  ammoDrops.push({ id: nextNetId++, group: g, x, z, amount, bob: Math.random() * 6, age: 0 });
 }
+const AMMO_TTL = 120;  // seconds before an uncollected ammo box despawns
 function updateAmmoDrops(dt, t) {
   for (let i = ammoDrops.length - 1; i >= 0; i--) {
     const a = ammoDrops[i];
+    a.age += dt;
+    // clean up: expired, or out of bounds (beyond the wall, unreachable)
+    if (a.age > AMMO_TTL || Math.hypot(a.x, a.z) > 104) {
+      world.remove(a.group);
+      ammoDrops.splice(i, 1);
+      continue;
+    }
     a.group.rotation.y += dt * 1.8;
     a.group.position.y = Math.sin(t * 2.4 + a.bob) * 0.14 + 0.06;
+    // blink in the final few seconds so it's clear it's about to vanish
+    a.group.visible = a.age < AMMO_TTL - 6 || Math.sin(a.age * 14) > 0;
     if (started && !gameOver && hasGun && Math.hypot(player.group.position.x - a.x, player.group.position.z - a.z) < 1.9) {
       if (ammoReserve < RESERVE_MAX) {
         ammoReserve = Math.min(RESERVE_MAX, ammoReserve + a.amount);
@@ -2297,6 +2329,17 @@ function pickupGunNow() {
 
 const _ray = new THREE.Ray();
 const _tmp = new THREE.Vector3();
+// pistol damage drop-off: full power up close, tapering to a floor at range
+const DMG_NEAR = 16;     // full damage within this many units
+const DMG_FAR = 60;      // minimum damage beyond this range
+const DMG_MIN = 0.4;     // floor multiplier at long range
+function damageFalloff(dist) {
+  if (dist <= DMG_NEAR) return 1;
+  if (dist >= DMG_FAR) return DMG_MIN;
+  const f = (dist - DMG_NEAR) / (DMG_FAR - DMG_NEAR); // 0→1 across the band
+  return 1 - (1 - DMG_MIN) * f;
+}
+
 function fire() {
   if (reloading) return;
   if (ammo <= 0) {
@@ -2356,7 +2399,7 @@ function fire() {
     const onRay = _ray.at(bestAlong, new THREE.Vector3());
     const groupY = best.group ? best.group.position.y : best.pen.group.position.y;
     const headshot = bestType !== 'boss' && onRay.y >= groupY + 1.7 * bestScale;
-    const dmg = gunDamage * (headshot ? 2 : 1);
+    const dmg = gunDamage * (headshot ? 2 : 1) * damageFalloff(bestAlong);
     if (isClient) {
       // report to the host; show local feedback immediately
       hitOut.push({ nid: bestNid, dmg, hs: headshot });
@@ -2484,8 +2527,8 @@ function updateWeapons(dt) {
   recoil = Math.max(0, recoil - dt * 4);
   playerGun.rotation.x = -recoil;
 
-  // first-person viewmodel: show only when zoomed in & armed, with bob + recoil kick
-  fpViewmodel.visible = firstPerson && hasGun;
+  // first-person viewmodel: show only when zoomed in & armed (never while spectating)
+  fpViewmodel.visible = firstPerson && hasGun && !spectating;
   if (fpViewmodel.visible) {
     const bobAmt = moving && onGround ? 1 : 0;
     fpBob += dt * (moving ? 10 : 4);
@@ -2670,10 +2713,12 @@ document.addEventListener('mousemove', (e) => {
   }
 });
 document.addEventListener('wheel', (e) => {
-  if (!started) return;
+  if (!started && !spectating) return;
   const wasFP = camDist <= FP_DIST;
   camDist = clamp(camDist + e.deltaY * 0.01, CAM_MIN_DIST, CAM_MAX_DIST);
   const nowFP = camDist <= FP_DIST;
+  // while spectating we just zoom — no pointer lock / mouse-look needed
+  if (spectating) return;
   // entering first-person: capture the mouse for Roblox-style look
   if (nowFP && !wasFP && !dragging && !document.pointerLockElement) {
     document.body.requestPointerLock();
@@ -2815,6 +2860,7 @@ let localEmote = null;
 // ---- co-op down / spectate / respawn ----
 let spectating = false;
 let diedRound = 0;
+let spectateId = null;   // which teammate we're currently watching
 const spectateBanner = document.createElement('div');
 spectateBanner.style.cssText =
   'position:fixed;top:0;left:0;right:0;z-index:19;display:none;flex-direction:column;align-items:center;' +
@@ -2835,6 +2881,7 @@ function downPlayer() {
   if (spectating) return;
   spectating = true;
   diedRound = round;
+  spectateId = null;
   started = false;
   player.group.visible = false;
   ui.crosshair.style.display = 'none';
@@ -2848,13 +2895,17 @@ function downPlayer() {
 
 function respawnPlayer() {
   spectating = false;
+  spectateId = null;
   playerHP = PLAYER_MAX_HP;
   updatePlayerHP();
+  updateCashHUD();
   damageFlash = 0;
   vignette.style.opacity = '0';
-  let sx = 0, sz = 0;
+  let sx = 0, sz = 0, found = false;
   for (const [, r] of remotePlayers) {
-    if (!r.down) { sx = r.pen.group.position.x; sz = r.pen.group.position.z + 3; break; }
+    r.pen.group.visible = true;             // un-hide anyone we were POV-spectating
+    r.tag.visible = true;
+    if (!found && !r.down) { sx = r.pen.group.position.x; sz = r.pen.group.position.z + 3; found = true; }
   }
   player.group.position.set(sx, 0, sz);
   player.group.visible = true;
@@ -2866,24 +2917,65 @@ function respawnPlayer() {
   toast('🔁 Respawned — back in the fight!');
 }
 
-// follow a living teammate while downed; respawn when the round ticks over
-const _specPos = new THREE.Vector3();
+// Spectate a living teammate from their own viewpoint: we replicate their
+// camera (look direction + position), keep our own zoom (scroll), and mirror
+// their HP/cash to the HUD. Scroll all the way in for a true first-person view.
 function updateSpectate() {
   if (!spectating) return;
-  if (!anyTeammateAlive()) { spectating = false; spectateBanner.style.display = 'none'; endGame(); return; } // whole squad down → over
-  if (round > diedRound) { respawnPlayer(); return; }   // survived to next round
-  let rp = null;
-  for (const [, r] of remotePlayers) if (!r.down) { rp = r; break; }
-  if (rp) {
-    specSub.textContent = `Spectating ${rp.name || 'a teammate'} • respawn at Round ${diedRound + 1}`;
-    const tp = rp.pen.group.position;
-    const cp = Math.cos(pitch), sp = Math.sin(pitch);
-    _specPos.set(tp.x + Math.sin(yaw) * cp * 8, tp.y + sp * 8 + 3, tp.z + Math.cos(yaw) * cp * 8);
-    _specPos.y = Math.max(_specPos.y, 1.2);
-    camera.position.lerp(_specPos, 1 - Math.exp(-10 * lastDt));
-    camera.lookAt(tp.x, tp.y + 1.5, tp.z);
+  if (!anyTeammateAlive()) { spectating = false; spectateBanner.style.display = 'none'; endGame(); return; }
+  if (round > diedRound) { respawnPlayer(); return; }
+
+  // keep watching the same teammate until they go down or leave
+  let rp = spectateId && remotePlayers.get(spectateId);
+  if (!rp || rp.down) {
+    rp = null;
+    for (const [rid, r] of remotePlayers) if (!r.down) { rp = r; spectateId = rid; break; }
+  }
+  // make sure nobody is left hidden from a previous frame, except our POV target
+  for (const [, r] of remotePlayers) if (r !== rp) { r.pen.group.visible = true; r.tag.visible = true; }
+  if (!rp) return;
+
+  specSub.textContent = `Spectating ${rp.name || 'a teammate'} • respawn at Round ${diedRound + 1} • scroll to zoom`;
+
+  // mirror the teammate's HP + cash onto the HUD
+  const f = clamp(rp.hp / PLAYER_MAX_HP, 0, 1);
+  hpFill.style.width = (f * 100) + '%';
+  hpFill.style.background = f > 0.5 ? '#46d65f' : f > 0.25 ? '#ffd23f' : '#ff3b3b';
+  hpLabel.textContent = `${rp.name || 'Teammate'}: ${Math.ceil(rp.hp)} HP`;
+  cashPill.innerHTML = `💵 <span>$${rp.cash || 0}</span>`;
+
+  // replicate their camera. yaw/pitch come from them; distance is OUR zoom.
+  const center = rp.pen.group.position;
+  const ty = rp.camYaw || 0;
+  const tpi = rp.camPitch || 0;
+  const cp = Math.cos(tpi), sp = Math.sin(tpi);
+
+  if (camDist <= FP_DIST) {
+    // first-person at their head — hide their body + tag so we don't see inside
+    rp.pen.group.visible = false;
+    rp.tag.visible = false;
+    const head = _specHead.set(center.x, center.y + 1.85, center.z);
+    const fwd = _specFwd.set(-Math.sin(ty) * cp, -sp, -Math.cos(ty) * cp);
+    camera.position.lerp(head, 1 - Math.exp(-30 * lastDt));
+    camera.lookAt(camera.position.x + fwd.x, camera.position.y + fwd.y, camera.position.z + fwd.z);
+  } else {
+    rp.pen.group.visible = true;
+    rp.tag.visible = true;
+    const target = _specTarget.set(center.x, center.y + 1.6, center.z);
+    const desired = _specPos.set(
+      center.x + Math.sin(ty) * cp * camDist,
+      center.y + 1.6 + sp * camDist,
+      center.z + Math.cos(ty) * cp * camDist
+    );
+    desired.y = Math.max(desired.y, 0.9);
+    camera.position.lerp(desired, 1 - Math.exp(-18 * lastDt));
+    camera.lookAt(target);
   }
 }
+const _specPos = new THREE.Vector3();
+const _specHead = new THREE.Vector3();
+const _specFwd = new THREE.Vector3();
+const _specTarget = new THREE.Vector3();
 
 function ensureRemote(id, s) {
   let rp = remotePlayers.get(id);
@@ -2947,12 +3039,18 @@ function pushLocalState() {
     y: player.group.position.y,
     z: player.group.position.z,
     ry: firstPerson ? lookYaw : player.group.rotation.y,
-    pt: firstPerson ? pitch : 0,
+    // raw camera state so spectators can replicate exactly what we see
+    cy: yaw,
+    cpitch: pitch,
+    cd: camDist,
+    fp: firstPerson,
     color: playerColor,
     name: playerName,
     mv: moving,
     hasGun,
     down: spectating,
+    hp: Math.ceil(playerHP),
+    cash,
     fireSeq: localFireSeq,
     emoteSeq: localEmoteSeq,
     emote: localEmote,
@@ -2967,6 +3065,11 @@ function updateRemotePlayers(dt, t) {
     const rp = ensureRemote(id, s);
     rp.name = s.name || rp.name;
     rp.down = !!s.down;
+    rp.camYaw = s.cy ?? rp.camYaw ?? 0;
+    rp.camPitch = s.cpitch ?? 0;
+    rp.fp = !!s.fp;
+    rp.hp = s.hp ?? rp.hp ?? 0;
+    rp.cash = s.cash ?? rp.cash ?? 0;
     const g = rp.pen.group;
     const k = 1 - Math.exp(-12 * dt);
     g.position.x += ((s.x ?? g.position.x) - g.position.x) * k;
@@ -2981,7 +3084,7 @@ function updateRemotePlayers(dt, t) {
       g.rotation.z = lerpAngle(g.rotation.z, Math.PI / 2, k);
       g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, k);
     } else {
-      rp.lookPitch = s.pt ?? 0;
+      rp.lookPitch = rp.fp ? rp.camPitch : 0;
       const lean = clamp(rp.lookPitch, -0.9, 0.9) * 0.6;
       g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, lean, k);
     }
@@ -3052,7 +3155,18 @@ let bannerSeq = 0;
 let bannerText = '';
 const killFeed = [];
 let killSeq = 0;
+const chatFeed = [];        // zombie taunts → mirrored to every client
+let chatSeq = 0;
 let bcastAcc = 0;
+
+// show a zombie taunt locally and (on the host) queue it for every client
+function broadcastChat(group, text, headY, nid) {
+  showChat(group, text, headY);
+  if (netRole() === 'host') {
+    chatFeed.push({ seq: ++chatSeq, nid, txt: text, hy: Math.round(headY * 100) / 100 });
+    if (chatFeed.length > 10) chatFeed.shift();
+  }
+}
 
 function hostBroadcast() {
   const arr = [];
@@ -3079,6 +3193,8 @@ function hostBroadcast() {
   setGlobal('meds', medpacks.map((m) => [m.id, Math.round(m.x * 10) / 10, Math.round(m.z * 10) / 10]));
   setGlobal('ammos', ammoDrops.map((a) => [a.id, Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, a.amount]));
   setGlobal('kf', killFeed);
+  setGlobal('cf', chatFeed);
+  setGlobal('env', { tod: Math.round(dayTime * 1000) / 1000, wx: Math.round(weatherCur * 100) / 100 });
 }
 
 // ---------- HOST: process incoming client inputs ----------
@@ -3120,8 +3236,10 @@ function removeAmmoById(id) {
 }
 
 // kill feed entry, awarded to a *client* attacker (host rewards itself directly)
-function pushKill(killerId, base, hs) {
-  killFeed.push({ seq: ++killSeq, killer: killerId, base, hs });
+function pushKill(killerId, base, hs, point) {
+  const e = { seq: ++killSeq, killer: killerId, base, hs };
+  if (point) { e.x = Math.round(point.x * 100) / 100; e.y = Math.round(point.y * 100) / 100; e.z = Math.round(point.z * 100) / 100; }
+  killFeed.push(e);
   if (killFeed.length > 12) killFeed.shift();
 }
 
@@ -3242,14 +3360,35 @@ function clientReadFeed() {
   fresh.sort((a, b) => a.seq - b.seq);
   for (const e of fresh) {
     if (e.killer !== mpMyId()) continue;
+    dismissMpStatus();
     eliminations++;
     const mult = registerKillCombo();
-    earnCash(Math.round(e.base * mult));
+    const pt = (e.x !== undefined) ? new THREE.Vector3(e.x, e.y, e.z) : null;
+    earnCash(Math.round(e.base * mult), pt);   // pt → floating "+$" popup
+    if (e.hs && pt) floatText('HEADSHOT KILL!', pt, '#ffd23f', 22);
     showHitMarker(true);
     if (e.hs) sfx.headshotKill(); else sfx.kill();
     updateWeaponHUD();
   }
   lastFeedSeq = maxSeq;
+}
+
+// client mirrors zombie taunt bubbles, anchored to the matching ghost
+let lastChatSeq = 0;
+let chatSynced = false;
+function clientReadChats() {
+  const cf = getGlobal('cf');
+  if (!cf || !cf.length) return;
+  let maxSeq = lastChatSeq;
+  for (const e of cf) if (e.seq > maxSeq) maxSeq = e.seq;
+  // on first sync just catch up — don't replay a backlog of old taunts at once
+  if (!chatSynced) { chatSynced = true; lastChatSeq = maxSeq; return; }
+  for (const e of cf) {
+    if (e.seq <= lastChatSeq) continue;
+    const g = ghosts.get(e.nid);
+    if (g && !g.dead) showChat(g.pen.group, e.txt, e.hy ?? 3.4);
+  }
+  lastChatSeq = maxSeq;
 }
 
 function updateBossBarFromNet() {
@@ -3365,7 +3504,8 @@ function updateNPCs(dt, t) {
       if (npc.chatTimer <= 0) {
         npc.chatTimer = 5 + Math.random() * 9;
         if (distP < 42 && Math.random() < 0.5) {
-          showChat(npc.group, ZOMBIE_TAUNTS[Math.floor(Math.random() * ZOMBIE_TAUNTS.length)], 3.0 + npc.scale * 1.15);
+          const txt = ZOMBIE_TAUNTS[Math.floor(Math.random() * ZOMBIE_TAUNTS.length)];
+          broadcastChat(npc.group, txt, 3.0 + npc.scale * 1.15, npc.netId);
         }
       }
 
@@ -3611,8 +3751,14 @@ mpStatus.addEventListener('click', () => {
 });
 
 let mpConnected = false;
+let mpStatusDismissed = false;
+function dismissMpStatus() {
+  if (mpStatusDismissed) return;
+  mpStatusDismissed = true;
+  mpStatus.style.display = 'none';
+}
 function updateMpStatus() {
-  if (!mpConnected) return;
+  if (!mpConnected || mpStatusDismissed) return;
   const n = mpPlayerCount();
   const code = mpRoomCode() || '…';
   mpStatus.innerHTML =
@@ -3654,8 +3800,106 @@ mpButton.addEventListener('click', async () => {
 // =====================================================================
 //  Atmosphere: smoke, clouds, aurora, twinkling lights
 // =====================================================================
+// =====================================================================
+//  Day / night cycle + dynamic weather
+// =====================================================================
+let dayTime = 0.32;            // phase 0..1 (0 = midnight, .25 sunrise, .5 noon, .75 sunset)
+const DAY_LENGTH = 300;        // seconds for a full day→night→day loop
+let weatherCur = 0.4;          // 0 = clear … 1 = blizzard
+let weatherTarget = 0.4;
+let weatherTimer = 22;
+let weatherSnowVis = 0.4;      // read by the snow particle loop
+let lastWeatherLabel = 'snow';
+
+// keyframes around the clock — colors/intensities are interpolated between them
+const SKY_KEYS = [
+  { t: 0.00, top: 0x0a1230, mid: 0x132a55, bot: 0x21406e, fog: 0x16263f, sun: 0x8fa6d8, sunI: 0.12, hemiI: 0.5, exp: 0.82 }, // midnight
+  { t: 0.24, top: 0x355a93, mid: 0x8a7ba8, bot: 0xe0a888, fog: 0xc29684, sun: 0xffb070, sunI: 1.1, hemiI: 1.2, exp: 0.96 }, // sunrise glow
+  { t: 0.32, top: 0x4b86c6, mid: 0xbcd6ee, bot: 0xffe2bd, fog: 0xd9e6e8, sun: 0xffd8a8, sunI: 2.1, hemiI: 1.8, exp: 1.04 }, // morning
+  { t: 0.50, top: 0x2f7fd0, mid: 0x7cc3f0, bot: 0xeaf7ff, fog: 0xbfe9ff, sun: 0xfff2cf, sunI: 2.7, hemiI: 2.1, exp: 1.08 }, // noon
+  { t: 0.70, top: 0x3f70b8, mid: 0xc0d2ec, bot: 0xffe0b0, fog: 0xd9d7e0, sun: 0xffd8a8, sunI: 2.0, hemiI: 1.7, exp: 1.04 }, // afternoon
+  { t: 0.78, top: 0x394e8c, mid: 0xd98a5e, bot: 0xffb070, fog: 0xdf9e72, sun: 0xff9a55, sunI: 1.0, hemiI: 1.1, exp: 0.95 }, // sunset
+  { t: 0.86, top: 0x1c2a55, mid: 0x46407e, bot: 0x6a4f7a, fog: 0x40334f, sun: 0x9a7fc0, sunI: 0.35, hemiI: 0.72, exp: 0.86 }, // dusk
+];
+
+const _ca = new THREE.Color(), _cb = new THREE.Color(), _tmpCol = new THREE.Color();
+function envColor(out, hexA, hexB, f) { _ca.setHex(hexA); _cb.setHex(hexB); return out.copy(_ca).lerp(_cb, f); }
+
+function updateEnvironment(dt) {
+  const role = netRole();
+  if (role === 'client') {
+    // the host owns time + weather; mirror it
+    const env = getGlobal('env');
+    if (env) { dayTime = env.tod ?? dayTime; weatherCur = env.wx ?? weatherCur; }
+  } else {
+    dayTime = (dayTime + dt / DAY_LENGTH) % 1;
+    weatherTimer -= dt;
+    if (weatherTimer <= 0) {
+      weatherTimer = 30 + Math.random() * 45;
+      const r = Math.random();
+      weatherTarget = r < 0.45 ? 0.1 : r < 0.8 ? 0.5 : 0.95;
+    }
+    weatherCur += (weatherTarget - weatherCur) * (1 - Math.exp(-0.25 * dt));
+    const label = weatherCur > 0.75 ? 'blizzard' : weatherCur > 0.3 ? 'snow' : 'clear';
+    if (label !== lastWeatherLabel && started) {
+      if (label === 'blizzard') toast('🌨️ A blizzard is rolling in…');
+      else if (label === 'clear') toast('☀️ The skies are clearing.');
+      else if (lastWeatherLabel === 'clear') toast('❄️ Snow starts to fall.');
+      lastWeatherLabel = label;
+    }
+  }
+  weatherSnowVis = weatherCur;
+
+  // locate the surrounding keyframes (wrapping around midnight)
+  let a = SKY_KEYS[SKY_KEYS.length - 1], b = SKY_KEYS[0], local = 0;
+  for (let k = 0; k < SKY_KEYS.length; k++) {
+    const cur = SKY_KEYS[k], nxt = SKY_KEYS[(k + 1) % SKY_KEYS.length];
+    let t0 = cur.t, t1 = nxt.t; if (t1 <= t0) t1 += 1;
+    let pp = dayTime; if (pp < t0) pp += 1;
+    if (pp >= t0 && pp <= t1) { a = cur; b = nxt; local = (pp - t0) / (t1 - t0); break; }
+  }
+  const f = local * local * (3 - 2 * local); // smoothstep
+
+  envColor(skyMat.uniforms.top.value, a.top, b.top, f);
+  envColor(skyMat.uniforms.mid.value, a.mid, b.mid, f);
+  envColor(skyMat.uniforms.bottom.value, a.bot, b.bot, f);
+
+  envColor(scene.fog.color, a.fog, b.fog, f);
+  scene.fog.far = THREE.MathUtils.lerp(190, 105, weatherCur);
+  scene.fog.near = THREE.MathUtils.lerp(60, 22, weatherCur);
+
+  sun.color.copy(envColor(_tmpCol, a.sun, b.sun, f));
+  sun.intensity = THREE.MathUtils.lerp(a.sunI, b.sunI, f) * (1 - weatherCur * 0.45);
+  hemi.intensity = THREE.MathUtils.lerp(a.hemiI, b.hemiI, f) * (1 - weatherCur * 0.3);
+  renderer.toneMappingExposure = THREE.MathUtils.lerp(a.exp, b.exp, f);
+
+  // move the sun around an arc; keep some fill light so night isn't pitch black
+  const ang = (dayTime - 0.25) * Math.PI * 2;
+  const elev = Math.sin(ang);
+  sun.position.set(Math.cos(ang) * 80, elev * 95, 30);
+
+  // sun by day, moon by night — reposition + retint the glowing disc
+  const up = elev >= 0;
+  const lang = up ? ang : ang + Math.PI;       // moon rides the opposite arc
+  const lh = Math.abs(elev);
+  sunDisc.position.set(Math.cos(lang) * 210, lh * 165 + 20, -150);
+  sunDisc.lookAt(0, 0, 0);
+  sunHalo.position.copy(sunDisc.position);
+  sunHalo.lookAt(0, 0, 0);
+  sunDisc.material.color.setHex(up ? 0xfff7e3 : 0xdfe8ff);
+  sunHalo.material.color.setHex(up ? 0xfff2c8 : 0xbcd0ff);
+  sunHalo.material.opacity = (up ? 0.28 : 0.16) * (1 - weatherCur * 0.7);
+  sunDisc.material.opacity = (up ? 0.95 : 0.8) * (1 - weatherCur * 0.6);
+
+  // stars + aurora glow strongest deep at night and fade out in bad weather
+  const night = clamp(-elev * 1.3 + 0.12, 0, 1);
+  starMat.opacity = night * 0.9 * (1 - weatherCur * 0.7);
+  auroraMat.uniforms.intensity.value = night * (1 - weatherCur * 0.6);
+}
+
 const smokeGeo = new THREE.SphereGeometry(0.4, 8, 8);
 function updateAtmosphere(dt, t) {
+  updateEnvironment(dt);
   // aurora shimmer
   auroraMat.uniforms.time.value = t;
 
@@ -3740,6 +3984,7 @@ function animate() {
     clientGhostDanger(dt);
     clientReadRounds();
     clientReadFeed();
+    clientReadChats();
     updateBossBarFromNet();
     flushHits();
     if (damageFlash > 0) { damageFlash = Math.max(0, damageFlash - dt * 1.6); vignette.style.opacity = String(damageFlash); }
@@ -3774,13 +4019,17 @@ function animate() {
 
   updateAtmosphere(dt, t);
 
-  // snow
+  // snow — density / speed / wind all scale with the current weather
+  snowPoints.material.opacity = 0.3 + weatherSnowVis * 0.65;
+  snowPoints.material.size = 0.15 + weatherSnowVis * 0.13;
+  const fallMul = 1 + weatherSnowVis * 1.6;
+  const wind = weatherSnowVis * 0.05;
   const p = snowGeo.attributes.position;
   const cx = player.group.position.x;
   const cz = player.group.position.z;
   for (let i = 0; i < snowCount; i++) {
-    p.array[i * 3 + 1] -= snowSpeed[i] * dt;
-    p.array[i * 3] += Math.sin(t * 0.6 + i) * 0.003;
+    p.array[i * 3 + 1] -= snowSpeed[i] * dt * fallMul;
+    p.array[i * 3] += Math.sin(t * 0.6 + i) * 0.003 + wind;
     if (p.array[i * 3 + 1] < 0) {
       p.array[i * 3 + 1] = 50;
       p.array[i * 3] = cx + (Math.random() - 0.5) * 120;
@@ -3789,7 +4038,6 @@ function animate() {
   }
   p.needsUpdate = true;
 
-  ui.location.textContent = currentZone();
   if (spectating) updateSpectate();           // may respawn or end the game
   if (spectating) player.group.visible = false;
   else updateCamera();
