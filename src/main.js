@@ -1706,6 +1706,8 @@ function tryBuyUpgrade() {
   upgradeCost = Math.round(upgradeCost * 1.8);
   updateCashHUD();
   updateWeaponHUD();
+  applyGunSkin(playerGun, gunLevel);
+  applyGunSkin(fpGun, gunLevel);
   sfx.upgrade();
   const tier = roll > 0.65 ? '💥 JACKPOT UPGRADE!' : roll > 0.3 ? '✨ Solid upgrade' : '⚙️ Upgraded';
   toast(`${tier} Mk.${gunLevel} — +${dmgGain} dmg, +${magGain} mag • ammo refilled`);
@@ -2265,16 +2267,59 @@ function updateWeaponHUD() {
 function setOnline() { ui.online.textContent = aliveZombies() + 1; }
 
 // --- pistol model ---
+const GUN_SKINS = [
+  { slide: 0x23262b, barrel: 0x14161a, grip: 0x14161a, accent: 0x555b66, glow: 0x000000, glowI: 0 },
+  { slide: 0x2b3b5f, barrel: 0x17213a, grip: 0x1b2742, accent: 0x58a6ff, glow: 0x1b75ff, glowI: 0.25 },
+  { slide: 0x31245f, barrel: 0x17102f, grip: 0x24183f, accent: 0xb46cff, glow: 0x9b4dff, glowI: 0.45 },
+  { slide: 0x5f2f16, barrel: 0x2b1309, grip: 0x3a1b0e, accent: 0xffb347, glow: 0xff8a1c, glowI: 0.65 },
+  { slide: 0x123f38, barrel: 0x08211f, grip: 0x0d2f2b, accent: 0x6effd8, glow: 0x20ffd0, glowI: 0.85 },
+  { slide: 0x571022, barrel: 0x220611, grip: 0x330916, accent: 0xff3f8e, glow: 0xff2a78, glowI: 1.05 },
+  { slide: 0xf2d06b, barrel: 0x3a2705, grip: 0x5b3b09, accent: 0xffffff, glow: 0xffd23f, glowI: 1.25 },
+];
+
+function gunSkinForLevel(level) {
+  return GUN_SKINS[Math.min(GUN_SKINS.length - 1, Math.max(0, level - 1))];
+}
+
+function applyGunSkin(gun, level = gunLevel) {
+  const skin = gunSkinForLevel(level);
+  gun.traverse((m) => {
+    if (!m.isMesh || !m.userData.gunPart) return;
+    const part = m.userData.gunPart;
+    const color = skin[part] ?? skin.slide;
+    m.material.color.setHex(color);
+    if (m.material.emissive) {
+      const glow = part === 'accent' ? skin.glow : 0x000000;
+      m.material.emissive.setHex(glow);
+      m.material.emissiveIntensity = part === 'accent' ? skin.glowI : 0;
+    }
+  });
+}
+
 function makePistol(scale = 1) {
   const g = new THREE.Group();
   const metal = mat(0x23262b, 0.4);
   const dark = mat(0x14161a, 0.5);
-  const slide = mesh(new THREE.BoxGeometry(0.16, 0.26, 0.95), metal); slide.position.set(0, 0.1, 0.1); g.add(slide);
-  const barrel = mesh(new THREE.BoxGeometry(0.12, 0.16, 1.05), dark); barrel.position.set(0, 0.1, 0.15); g.add(barrel);
-  const grip = mesh(new THREE.BoxGeometry(0.15, 0.5, 0.28), dark); grip.position.set(0, -0.2, -0.28); grip.rotation.x = 0.32; g.add(grip);
-  const trigger = mesh(new THREE.BoxGeometry(0.1, 0.16, 0.1), dark); trigger.position.set(0, -0.05, -0.12); g.add(trigger);
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x555b66, roughness: 0.28, metalness: 0.15, emissive: 0x000000, emissiveIntensity: 0 });
+  const slide = mesh(new THREE.BoxGeometry(0.16, 0.26, 0.95), metal.clone()); slide.position.set(0, 0.1, 0.1); slide.userData.gunPart = 'slide'; g.add(slide);
+  const barrel = mesh(new THREE.BoxGeometry(0.12, 0.16, 1.05), dark.clone()); barrel.position.set(0, 0.1, 0.15); barrel.userData.gunPart = 'barrel'; g.add(barrel);
+  const grip = mesh(new THREE.BoxGeometry(0.15, 0.5, 0.28), dark.clone()); grip.position.set(0, -0.2, -0.28); grip.rotation.x = 0.32; grip.userData.gunPart = 'grip'; g.add(grip);
+  const trigger = mesh(new THREE.BoxGeometry(0.1, 0.16, 0.1), dark.clone()); trigger.position.set(0, -0.05, -0.12); trigger.userData.gunPart = 'barrel'; g.add(trigger);
+  // glowing accent rails make upgrades visually read like a skin/gradient tier
+  for (const sx of [-1, 1]) {
+    const rail = mesh(new THREE.BoxGeometry(0.035, 0.05, 0.72), accentMat.clone(), false, false);
+    rail.position.set(sx * 0.1, 0.25, 0.12);
+    rail.userData.gunPart = 'accent';
+    g.add(rail);
+  }
+  const gripPlate = mesh(new THREE.BoxGeometry(0.17, 0.28, 0.035), accentMat.clone(), false, false);
+  gripPlate.position.set(0, -0.18, -0.43);
+  gripPlate.rotation.x = 0.32;
+  gripPlate.userData.gunPart = 'accent';
+  g.add(gripPlate);
   g.scale.setScalar(scale);
   g.children.forEach((m) => (m.castShadow = true));
+  applyGunSkin(g, gunLevel);
   return g;
 }
 
@@ -2333,7 +2378,7 @@ let recoil = 0;
 // hold-to-fire: holding the shoot button auto-fires at a steady COD-like cadence
 let firing = false;
 let fireCooldown = 0;
-const FIRE_INTERVAL = 0.3333;   // 3 rounds/sec
+const FIRE_INTERVAL = 0.25;     // 4 rounds/sec while holding
 // reload timing (frame-driven so the FP animation + crosshair ring can track it)
 let reloadT = 0;
 const RELOAD_DUR = 0.9;
@@ -2385,6 +2430,8 @@ const bloodPools = [];
 function pickupGunNow() {
   hasGun = true;
   playerGun.visible = true;
+  applyGunSkin(playerGun, gunLevel);
+  applyGunSkin(fpGun, gunLevel);
   shopGun.visible = false;
   shopGunGlow.visible = false;
   ammo = MAG_SIZE;
@@ -2411,12 +2458,16 @@ function damageFalloff(dist) {
   return 1 - (1 - DMG_MIN) * f;
 }
 
-// rate-limited fire request — used by both single clicks and hold-to-fire so
-// the cadence is identical whether you tap or hold the button down
-function requestFire() {
-  if (fireCooldown > 0) return;
-  fireCooldown = FIRE_INTERVAL;
-  fire();
+// Manual clicks fire immediately; holding uses a separate cooldown so fast
+// tapping still rewards the player without turning held fire into a laser.
+function requestFire(manual = false) {
+  if (manual) {
+    fire();
+    fireCooldown = FIRE_INTERVAL;
+  } else if (fireCooldown <= 0) {
+    fireCooldown = FIRE_INTERVAL;
+    fire();
+  }
 }
 
 function fire() {
@@ -3000,7 +3051,7 @@ document.addEventListener('mousedown', (e) => {
   } else if (e.button === 0 && (onCanvas || dragging || firstPerson)) {
     // left button: shoot / throw toward the reticle (center in first-person)
     // holding the button keeps auto-firing the pistol at a steady cadence
-    if (hasGun) { firing = true; requestFire(); }
+    if (hasGun) { firing = true; requestFire(true); }
     else throwSnowball();
   }
 });
@@ -3304,9 +3355,10 @@ function ensureRemote(id, s) {
   const gun = makePistol(0.85);
   gun.position.set(0.55, 1.25, 0.5);
   gun.visible = false;
+  applyGunSkin(gun, s.gl ?? 1);
   pen.group.add(gun);
 
-  rp = { pen, tag, gun, phase: 0, lastFire: s.fireSeq || 0, lastEmote: s.emoteSeq || 0, color, name: s.name, down: false };
+  rp = { pen, tag, gun, gunLevel: s.gl ?? 1, phase: 0, lastFire: s.fireSeq || 0, lastEmote: s.emoteSeq || 0, color, name: s.name, down: false };
   remotePlayers.set(id, rp);
   return rp;
 }
@@ -3358,6 +3410,7 @@ function pushLocalState() {
     name: playerName,
     mv: moving,
     hasGun,
+    gl: gunLevel,
     down: spectating,
     hp: Math.ceil(playerHP),
     cash,
@@ -3380,6 +3433,11 @@ function updateRemotePlayers(dt, t) {
     rp.fp = !!s.fp;
     rp.hp = s.hp ?? rp.hp ?? 0;
     rp.cash = s.cash ?? rp.cash ?? 0;
+    const remoteGunLevel = s.gl ?? 1;
+    if (remoteGunLevel !== rp.gunLevel) {
+      rp.gunLevel = remoteGunLevel;
+      applyGunSkin(rp.gun, remoteGunLevel);
+    }
     const g = rp.pen.group;
     const k = 1 - Math.exp(-12 * dt);
     g.position.x += ((s.x ?? g.position.x) - g.position.x) * k;
