@@ -2319,7 +2319,6 @@ function makePistol(scale = 1) {
   g.add(gripPlate);
   g.scale.setScalar(scale);
   g.children.forEach((m) => (m.castShadow = true));
-  applyGunSkin(g, gunLevel);
   return g;
 }
 
