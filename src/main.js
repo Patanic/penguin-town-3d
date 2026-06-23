@@ -1951,11 +1951,28 @@ function killNPC(npc, point, headshot = false, attackerId = mpMyId()) {
     pushKill(attackerId, base, headshot, point);
   }
   if (npc === bossRef) { bossBar.style.display = 'none'; bossRef = null; }
-  // random ammo drop — scarce; bigger threats are a bit more generous
-  const dropChance = npc.type === 'boss' ? 1 : npc.type === 'brute' ? 0.45 : 0.24;
-  if (hordeMode && Math.random() < dropChance) {
-    const amt = npc.type === 'boss' ? 40 : npc.type === 'brute' ? 16 : 6 + Math.floor(Math.random() * 6);
-    spawnAmmoDrop(npc.group.position.x, npc.group.position.z, amt);
+  // loot drops
+  if (hordeMode && npc.type === 'boss') {
+    // boss: a generous spread of med packs + ammo scattered around the corpse
+    const bx = npc.group.position.x, bz = npc.group.position.z;
+    const meds = 3, boxes = 4;
+    for (let k = 0; k < meds; k++) {
+      const a = (k / meds) * Math.PI * 2 + Math.random() * 0.6;
+      const r = 1.8 + Math.random() * 1.4;
+      spawnMedpackAt(bx + Math.cos(a) * r, bz + Math.sin(a) * r);
+    }
+    for (let k = 0; k < boxes; k++) {
+      const a = (k / boxes) * Math.PI * 2 + 0.5 + Math.random() * 0.6;
+      const r = 2.4 + Math.random() * 1.8;
+      spawnAmmoDrop(bx + Math.cos(a) * r, bz + Math.sin(a) * r, 12 + Math.floor(Math.random() * 8), true);
+    }
+  } else if (hordeMode) {
+    // random ammo drop — scarce; bigger threats are a bit more generous
+    const dropChance = npc.type === 'brute' ? 0.45 : 0.24;
+    if (Math.random() < dropChance) {
+      const amt = npc.type === 'brute' ? 16 : 6 + Math.floor(Math.random() * 6);
+      spawnAmmoDrop(npc.group.position.x, npc.group.position.z, amt);
+    }
   }
   setOnline();
   updateWeaponHUD();
@@ -1999,6 +2016,15 @@ function spawnMedpack() {
     const r = 8 + Math.random() * 38;
     x = Math.cos(a) * r; z = Math.sin(a) * r; tries++;
   } while (collides({ x, z }) && tries < 12);
+  spawnMedpackAt(x, z);
+}
+// place a med pack at a specific point (used for boss loot — bypasses the cap)
+function spawnMedpackAt(x, z) {
+  const r = Math.hypot(x, z);
+  if (r > 100) { const k = 100 / r; x *= k; z *= k; }
+  // nudge out of any wall it landed in
+  let tries = 0;
+  while (collides({ x, z }) && tries < 10) { x += (Math.random() - 0.5) * 2.4; z += (Math.random() - 0.5) * 2.4; tries++; }
   const g = makeMedpack();
   g.position.set(x, 0, z);
   world.add(g);
@@ -2055,11 +2081,14 @@ function makeAmmoBox() {
   beam.position.y = 2.4; g.add(beam);
   return g;
 }
-function spawnAmmoDrop(x, z, amount) {
+function spawnAmmoDrop(x, z, amount, force = false) {
   // hard cap on how much ammo can sit uncollected on the map — keeps it scarce
-  if (groundAmmoTotal() >= MAP_AMMO_CAP) return;
-  amount = Math.min(amount, MAP_AMMO_CAP - groundAmmoTotal());
-  if (amount <= 0) return;
+  // (boss loot ignores the cap so its reward always lands)
+  if (!force) {
+    if (groundAmmoTotal() >= MAP_AMMO_CAP) return;
+    amount = Math.min(amount, MAP_AMMO_CAP - groundAmmoTotal());
+    if (amount <= 0) return;
+  }
   // pull edge/out-of-bounds kills back inside the wall so the drop is reachable
   const r = Math.hypot(x, z);
   if (r > 100) { const k = 100 / r; x *= k; z *= k; }
@@ -2526,8 +2555,10 @@ const ICE_GRAV = 16;
 const CRATER_R = 2.4;       // freeze radius
 const CRATER_ARM = 0.45;    // brief telegraph before it can freeze you
 const CRATER_LIFE = 7;      // total lifetime on the ground
-const FREEZE_TIME = 2.4;    // seconds locked in place
+const FREEZE_TIME = 5;      // seconds locked in place
+const FREEZE_DPS = 5;       // damage per second while frozen
 let frozenTimer = 0;
+let freezeHurtTick = 0;
 let nextCraterId = 1;
 
 // translucent ice block that encases the local penguin while frozen
@@ -2548,11 +2579,12 @@ document.body.appendChild(frostOverlay);
 function freezePlayer() {
   if (frozenTimer > 0 || gameOver || spectating || !started) return;
   frozenTimer = FREEZE_TIME;
+  freezeHurtTick = 0;          // first damage tick lands immediately
   velocity.set(0, 0, 0);
   playerIce.visible = true;
   frostOverlay.style.opacity = '1';
   sfx.freeze();
-  toast('🧊 Frozen solid! Mash WASD to break free!');
+  toast('🧊 Frozen solid! The cold is killing you!');
 }
 // freeze the local player if they're standing on an armed crater at (x,z)
 function tryFreezeAt(x, z) {
@@ -2928,17 +2960,22 @@ function doEmote(i) {
 function move(dt) {
   if (!started) return;
 
-  // ---- frozen in place (boss ice crater) — can still aim/shoot, but no moving ----
+  // ---- frozen in place (boss ice crater) — locked for 5s, taking 5 dmg/sec ----
   if (frozenTimer > 0) {
-    const mashing = keys.has('KeyW') || keys.has('KeyA') || keys.has('KeyS') || keys.has('KeyD')
-      || keys.has('ArrowUp') || keys.has('ArrowDown') || keys.has('ArrowLeft') || keys.has('ArrowRight');
-    frozenTimer = Math.max(0, frozenTimer - dt * (mashing ? 2.4 : 1));
+    frozenTimer = Math.max(0, frozenTimer - dt);
     velocity.set(0, 0, 0);
     moving = false;
     velY -= GRAVITY * dt;
     let fy = player.group.position.y + velY * dt;
     if (fy <= 0) { fy = 0; velY = 0; onGround = true; }
     player.group.position.y = fy;
+    // tick damage once per second while frozen
+    freezeHurtTick -= dt;
+    if (freezeHurtTick <= 0) {
+      freezeHurtTick += 1;
+      damagePlayer(FREEZE_DPS);
+      if (gameOver || spectating) return;   // the cold finished us off
+    }
     if (frozenTimer === 0) { playerIce.visible = false; frostOverlay.style.opacity = '0'; }
     return;
   }
