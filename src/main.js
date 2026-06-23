@@ -1898,6 +1898,7 @@ function damagePlayer(amount) {
 function endGame() {
   gameOver = true;
   started = false;
+  firing = false;
   frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
   sfx.death();
   sfx.calmMusic();
@@ -2321,6 +2322,36 @@ muzzleFlash.visible = false;
 world.add(muzzleFlash);
 let muzzleTimer = 0;
 let recoil = 0;
+// hold-to-fire: holding the shoot button auto-fires at a steady COD-like cadence
+let firing = false;
+let fireCooldown = 0;
+const FIRE_INTERVAL = 0.3333;   // 3 rounds/sec
+// reload timing (frame-driven so the FP animation + crosshair ring can track it)
+let reloadT = 0;
+const RELOAD_DUR = 0.9;
+
+// reload progress ring drawn around the crosshair (replaces the old toast)
+const RELOAD_CIRC = 2 * Math.PI * 16;
+const reloadRing = document.createElement('div');
+reloadRing.style.cssText = 'position:absolute;left:50%;top:50%;width:46px;height:46px;transform:translate(-50%,-50%);display:none;pointer-events:none';
+reloadRing.innerHTML = `<svg width="46" height="46" viewBox="0 0 40 40" style="display:block">
+  <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="3.6"/>
+  <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="3"/>
+  <circle id="__reload_arc" cx="20" cy="20" r="16" fill="none" stroke="#ffd23f" stroke-width="3.2" stroke-linecap="round"
+    transform="rotate(-90 20 20)" stroke-dasharray="${RELOAD_CIRC}" stroke-dashoffset="${RELOAD_CIRC}"/>
+</svg>
+<div style="position:absolute;left:50%;top:100%;transform:translate(-50%,4px);font:800 9px 'Baloo 2',system-ui,sans-serif;color:#ffd23f;letter-spacing:.14em;text-shadow:0 1px 3px rgba(0,0,0,.85);white-space:nowrap">RELOADING</div>`;
+ui.crosshair.appendChild(reloadRing);
+const reloadArc = reloadRing.querySelector('#__reload_arc');
+function updateReloadIndicator() {
+  if (reloading) {
+    const pr = clamp(reloadT / RELOAD_DUR, 0, 1);
+    reloadArc.setAttribute('stroke-dashoffset', String(RELOAD_CIRC * (1 - pr)));
+    reloadRing.style.display = 'block';
+  } else if (reloadRing.style.display !== 'none') {
+    reloadRing.style.display = 'none';
+  }
+}
 
 // --- blood splat decal texture ---
 const bloodTex = (() => {
@@ -2370,6 +2401,14 @@ function damageFalloff(dist) {
   if (dist >= DMG_FAR) return DMG_MIN;
   const f = (dist - DMG_NEAR) / (DMG_FAR - DMG_NEAR); // 0→1 across the band
   return 1 - (1 - DMG_MIN) * f;
+}
+
+// rate-limited fire request — used by both single clicks and hold-to-fire so
+// the cadence is identical whether you tap or hold the button down
+function requestFire() {
+  if (fireCooldown > 0) return;
+  fireCooldown = FIRE_INTERVAL;
+  fire();
 }
 
 function fire() {
@@ -2452,9 +2491,9 @@ function reloadGun() {
   if (reloading || ammo === MAG_SIZE) return;
   if (ammoReserve <= 0) { sfx.dryFire(); toast('Out of ammo! Grab some from the fallen.'); return; }
   reloading = true;
+  reloadT = 0;
   updateWeaponHUD();
   sfx.reload();
-  toast('Reloading…');
   setTimeout(() => {
     const need = MAG_SIZE - ammo;
     const take = Math.min(need, ammoReserve);
@@ -2462,7 +2501,7 @@ function reloadGun() {
     ammoReserve -= take;
     reloading = false;
     updateWeaponHUD();
-  }, 900);
+  }, RELOAD_DUR * 1000);
 }
 
 function spawnTracer(a, b) {
@@ -2708,6 +2747,11 @@ function updateWeapons(dt) {
     shopGun.position.y = 1.85 + Math.sin(clock.elapsedTime * 2) * 0.08;
     shopGunGlow.rotation.z += dt * 2;
   }
+  // hold-to-fire: keep firing at a steady cadence while the button is held
+  fireCooldown = Math.max(0, fireCooldown - dt);
+  if (reloading) reloadT += dt;
+  if (firing && hasGun && started && !gameOver && !spectating) requestFire();
+
   // recoil + muzzle flash
   recoil = Math.max(0, recoil - dt * 4);
   playerGun.rotation.x = -recoil;
@@ -2715,13 +2759,24 @@ function updateWeapons(dt) {
   // first-person viewmodel: show only when zoomed in & armed (never while spectating)
   fpViewmodel.visible = firstPerson && hasGun && !spectating;
   if (fpViewmodel.visible) {
-    const bobAmt = moving && onGround ? 1 : 0;
-    fpBob += dt * (moving ? 10 : 4);
-    const bx = Math.cos(fpBob) * 0.012 * bobAmt;
-    const by = Math.abs(Math.sin(fpBob)) * 0.02 * bobAmt;
-    fpViewmodel.position.set(FP_REST.x + bx, FP_REST.y + by - recoil * 0.05, FP_REST.z + recoil * 0.12);
-    fpViewmodel.rotation.x = recoil * 0.5;
+    if (reloading) {
+      // reload animation: dip the gun down + roll it as if seating a fresh mag
+      const pr = clamp(reloadT / RELOAD_DUR, 0, 1);
+      const dip = Math.sin(pr * Math.PI);            // 0 → 1 → 0 over the reload
+      fpViewmodel.position.set(FP_REST.x + 0.06 * dip, FP_REST.y - 0.24 * dip, FP_REST.z + 0.05 * dip);
+      fpViewmodel.rotation.x = 0.8 * dip;
+      fpViewmodel.rotation.z = -0.55 * dip;
+    } else {
+      const bobAmt = moving && onGround ? 1 : 0;
+      fpBob += dt * (moving ? 10 : 4);
+      const bx = Math.cos(fpBob) * 0.012 * bobAmt;
+      const by = Math.abs(Math.sin(fpBob)) * 0.02 * bobAmt;
+      fpViewmodel.position.set(FP_REST.x + bx, FP_REST.y + by - recoil * 0.05, FP_REST.z + recoil * 0.12);
+      fpViewmodel.rotation.x = recoil * 0.5;
+      fpViewmodel.rotation.z = 0;
+    }
   }
+  updateReloadIndicator();
   if (muzzleTimer > 0) {
     muzzleTimer -= dt;
     muzzleFlash.material.rotation = Math.random() * Math.PI;
@@ -2926,16 +2981,20 @@ document.addEventListener('mousedown', (e) => {
     document.body.requestPointerLock();
   } else if (e.button === 0 && (onCanvas || dragging || firstPerson)) {
     // left button: shoot / throw toward the reticle (center in first-person)
-    if (hasGun) fire();
+    // holding the button keeps auto-firing the pistol at a steady cadence
+    if (hasGun) { firing = true; requestFire(); }
     else throwSnowball();
   }
 });
 document.addEventListener('mouseup', (e) => {
+  if (e.button === 0) firing = false;
   if (e.button === 2 && dragging) {
     dragging = false;
     if (document.pointerLockElement) document.exitPointerLock();
   }
 });
+// safety: stop auto-firing if the window loses focus
+window.addEventListener('blur', () => { firing = false; });
 document.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (!started) return;
@@ -3089,6 +3148,7 @@ function downPlayer() {
   diedRound = round;
   spectateId = null;
   started = false;
+  firing = false;
   player.group.visible = false;
   ui.crosshair.style.display = 'none';
   document.exitPointerLock?.();
