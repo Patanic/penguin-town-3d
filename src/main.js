@@ -165,6 +165,20 @@ const sfx = (() => {
       noise(0.07, t + 0.12, 0.34, 'lowpass', 760, 0.8); tone(210, t + 0.12, 0.08, 'sawtooth', 0.22, 85);
       tone(1320, t + 0.2, 0.12, 'triangle', 0.14, 1760);   // sweet little chime to sell the sugar rush
     }); },
+    // siren screech — a piercing dissonant wail that disorients
+    screech() { go((t) => {
+      noise(0.55, t, 0.2, 'bandpass', 2400, 4);
+      tone(1300, t, 0.55, 'sawtooth', 0.16, 520);
+      tone(1720, t + 0.02, 0.5, 'square', 0.09, 700);
+      tone(880, t + 0.05, 0.55, 'triangle', 0.12, 300);
+      tone(2100, t + 0.08, 0.4, 'sawtooth', 0.07, 1500);
+    }); },
+    // hissing burst of toxic gas escaping
+    gas() { go((t) => {
+      noise(0.95, t, 0.16, 'highpass', 1700, 0.7);
+      tone(420, t, 0.5, 'sawtooth', 0.05, 170);
+      noise(0.5, t + 0.1, 0.1, 'bandpass', 900, 2);
+    }); },
     combo(n) { go((t) => { const base = Math.min(1300, 480 + n * 48); noise(0.03, t, 0.28, 'bandpass', base, 6); tone(base, t, 0.06, 'square', 0.2, base * 0.7); }); },
     death() { go((t) => { tone(440, t, 1.1, 'sawtooth', 0.3, 70); noise(0.8, t, 0.3, 'lowpass', 700); }); },
     uiClick() { go((t) => tone(660, t, 0.05, 'square', 0.12, 880)); },
@@ -843,6 +857,68 @@ function addTypeMarkers(group, type) {
     const sac = mesh(new THREE.SphereGeometry(0.42, 12, 12), new THREE.MeshStandardMaterial({ color: 0x9be060, emissive: 0x4a8a2a, emissiveIntensity: 0.7, roughness: 0.4 }), false, false);
     sac.position.set(0, 1.1, 0.55);
     group.add(sac);
+  } else if (type === 'siren') {
+    // long flowing hair: a back curtain of locks + side bangs, plus eyelashes,
+    // so she reads instantly as a distinct support enemy at a glance
+    const hairMat = mat(0x241016, 0.7);
+    // crown/bangs cap framing the face
+    const crown = mesh(new THREE.SphereGeometry(0.72, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), hairMat, false, false);
+    crown.position.set(0, 2.12, -0.04);
+    crown.scale.set(1.04, 1.0, 1.06);
+    group.add(crown);
+    // draping locks down the back and sides (long hair)
+    const locks = [
+      { x: -0.46, z: -0.22, len: 1.7, tilt: 0.12 },
+      { x: 0.46, z: -0.22, len: 1.7, tilt: -0.12 },
+      { x: 0, z: -0.5, len: 2.0, tilt: 0 },
+      { x: -0.26, z: -0.46, len: 1.9, tilt: 0.06 },
+      { x: 0.26, z: -0.46, len: 1.9, tilt: -0.06 },
+      { x: -0.62, z: 0.16, len: 1.2, tilt: 0.18 },
+      { x: 0.62, z: 0.16, len: 1.2, tilt: -0.18 },
+    ];
+    for (const l of locks) {
+      const lock = mesh(new THREE.CapsuleGeometry(0.17, l.len, 4, 8), hairMat, false, false);
+      lock.position.set(l.x, 2.05 - l.len * 0.45, l.z);
+      lock.rotation.z = l.tilt;
+      lock.rotation.x = -0.12;
+      group.add(lock);
+    }
+    // long eyelashes — small dark cones flicking up from each eye
+    for (const sx of [-0.24, 0.24]) {
+      for (const k of [-1, 0, 1]) {
+        const lash = mesh(new THREE.ConeGeometry(0.025, 0.16, 6), hairMat, false, false);
+        lash.position.set(sx + k * 0.07, 2.3, 0.6);
+        lash.rotation.x = -0.9;
+        lash.rotation.z = k * 0.25;
+        group.add(lash);
+      }
+    }
+  } else if (type === 'gasser') {
+    // gas mask: dark goggle lenses, a filter canister snout, and a face strap
+    const maskMat = mat(0x39463a, 0.5);
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x223028, emissive: 0x74d674, emissiveIntensity: 0.35, roughness: 0.15 });
+    for (const sx of [-0.24, 0.24]) {
+      const rim = mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), maskMat, false, false);
+      rim.position.set(sx, 2.18, 0.56);
+      group.add(rim);
+      const lens = mesh(new THREE.SphereGeometry(0.19, 14, 12), glassMat, false, false);
+      lens.scale.set(1, 1, 0.55);
+      lens.position.set(sx, 2.18, 0.55);
+      group.add(lens);
+    }
+    // filter canister jutting from the snout
+    const canister = mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.5, 14), maskMat, false, false);
+    canister.rotation.x = Math.PI / 2;
+    canister.position.set(0, 1.9, 0.74);
+    group.add(canister);
+    const cap = mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.12, 14), mat(0x222a23, 0.5), false, false);
+    cap.rotation.x = Math.PI / 2;
+    cap.position.set(0, 1.9, 1.0);
+    group.add(cap);
+    // strap wrapping the head
+    const strap = mesh(new THREE.TorusGeometry(0.52, 0.07, 8, 20), maskMat, false, false);
+    strap.position.set(0, 2.05, 0.16);
+    group.add(strap);
   }
 }
 
@@ -1099,37 +1175,235 @@ const SHOP_R = 5.2;
 let shopRec = null;        // placed 'shop' GameObject (counter the player chats across)
 let gunPickupRec = null;   // placed 'gunpickup' GameObject (hidden once bought)
 
-const upgradePrompt = document.createElement('div');
-upgradePrompt.style.cssText = 'position:fixed;bottom:104px;left:50%;transform:translateX(-50%);z-index:6;padding:9px 16px;border-radius:12px;background:rgba(20,90,140,.85);border:2px solid rgba(255,255,255,.4);color:#fff;font:800 14px "Baloo 2",system-ui;display:none;text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap';
-document.body.appendChild(upgradePrompt);
+// ---------------------------------------------------------------------
+//  Shop: a walk-in zone in front of the counter. Step onto the glowing pad
+//  and a storefront screen opens (releasing the look-camera so you can use the
+//  mouse); buy/upgrade/restock in there; walk back out to close it and resume.
+// ---------------------------------------------------------------------
+const AMMO_PACK = 40;            // rounds per ammo crate
+const AMMO_PACK_COST = 120;      // base price at Mk.1
+// ammo gets pricier as the weapon levels up, so a maxed gun can't endlessly
+// restock for pocket change — keeps ammo a meaningful resource late game.
+function pistolAmmoCost() { return Math.round(AMMO_PACK_COST * (1 + (gunLevel - 1) * 0.6)); }
+const SHOP_ZONE_R = 3.4;
+let shopZone = null;             // { x, z, r } in front of the counter
+let shopOpen = false;
 
-function nearShop() {
-  if (!shopRec) return false;
-  const p = shopRec.obj.position;
-  return Math.hypot(player.group.position.x - p.x, player.group.position.z - p.z) < SHOP_R;
+// glowing floor pad marking the storefront zone
+const shopPad = (() => {
+  const g = new THREE.Group();
+  const ring = mesh(new THREE.RingGeometry(SHOP_ZONE_R - 0.55, SHOP_ZONE_R, 44),
+    new THREE.MeshBasicMaterial({ color: 0x57d7ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }), false, false);
+  ring.rotation.x = -Math.PI / 2;
+  const disc = mesh(new THREE.CircleGeometry(SHOP_ZONE_R - 0.55, 44),
+    new THREE.MeshBasicMaterial({ color: 0x1f9fd0, transparent: true, opacity: 0.12, depthWrite: false }), false, false);
+  disc.rotation.x = -Math.PI / 2;
+  g.add(ring); g.add(disc);
+  g.visible = false;
+  world.add(g);
+  return g;
+})();
+
+function computeShopZone() {
+  if (!shopRec) { shopZone = null; return; }
+  const sp = shopRec.obj.position;
+  // the "front" of the counter is wherever the pistol pickup sits (customer side);
+  // fall back to the shop's facing if there's no pickup placed.
+  let fx, fz;
+  if (gunPickupRec) {
+    const gp = gunPickupRec.obj.position;
+    const dx = gp.x - sp.x, dz = gp.z - sp.z, l = Math.hypot(dx, dz) || 1;
+    fx = dx / l; fz = dz / l;
+  } else {
+    fx = Math.sin(shopRec.obj.rotation.y + Math.PI);
+    fz = Math.cos(shopRec.obj.rotation.y + Math.PI);
+  }
+  const zx = sp.x + fx * 2.7, zz = sp.z + fz * 2.7;
+  shopZone = { x: zx, z: zz, r: SHOP_ZONE_R };
+  shopPad.position.set(zx, groundHeightAt(zx, zz, 0) + 0.04, zz);
+}
+function inShopZone() {
+  return shopZone && Math.hypot(player.group.position.x - shopZone.x, player.group.position.z - shopZone.z) < shopZone.r;
 }
 
-function buyPistol() {
-  if (hasGun || !started || gameOver) return;
-  if (!nearShop()) return;
+// ---- storefront screen ----
+const shopStyle = document.createElement('style');
+shopStyle.textContent = `
+  #shop-screen { position: fixed; inset: 0; z-index: 14; display: none; align-items: center; justify-content: center;
+    pointer-events: none; font-family: "Baloo 2", system-ui; backdrop-filter: blur(2px); background: rgba(4,12,22,.28); }
+  #shop-card { pointer-events: auto; width: min(480px, 93vw); background: linear-gradient(180deg, rgba(17,44,66,.98), rgba(8,22,36,.99));
+    border: 2px solid rgba(120,200,255,.45); border-radius: 22px;
+    box-shadow: 0 30px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12); padding: 0; color: #eaf6ff; overflow: hidden;
+    animation: shopPop .18s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes shopPop { from { transform: scale(.92) translateY(8px); opacity: 0 } to { transform: scale(1) translateY(0); opacity: 1 } }
+  .shop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 18px 14px; background: linear-gradient(180deg, rgba(40,98,150,.45), rgba(40,98,150,0));
+    border-bottom: 1px solid rgba(255,255,255,.08); }
+  .shop-title { font-weight: 900; font-size: 22px; line-height: 1.05; letter-spacing: .01em; }
+  .shop-sub { font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .5; margin-top: 3px; }
+  #shop-cash { flex: none; font-size: 16px; font-weight: 900; color: #ffe23a; background: rgba(45,120,55,.45);
+    border: 1px solid rgba(140,230,150,.3); padding: 6px 13px; border-radius: 999px; white-space: nowrap; }
+  #shop-items { padding: 12px; display: flex; flex-direction: column; gap: 10px; max-height: 62vh; overflow-y: auto; }
+  #shop-items::-webkit-scrollbar { width: 8px; }
+  #shop-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 8px; }
+  .gun-card { border-radius: 16px; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.07); overflow: hidden; }
+  .gun-card.owned { border-color: rgba(120,200,255,.3); background: rgba(70,150,210,.1); }
+  .gun-card.locked { opacity: .5; }
+  .gun-head { display: flex; align-items: center; gap: 13px; padding: 12px 13px; }
+  .gun-ic { flex: none; width: 48px; height: 48px; display: grid; place-items: center; font-size: 26px;
+    border-radius: 13px; background: rgba(0,0,0,.28); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+  .gun-meta { flex: 1; min-width: 0; }
+  .gun-name { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 7px; }
+  .gun-badge { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #bfe6ff; background: rgba(120,200,255,.22);
+    padding: 2px 8px; border-radius: 999px; }
+  .gun-tag { font-size: 12px; opacity: .6; margin-top: 1px; }
+  .gun-status { flex: none; font-weight: 900; font-size: 13px; letter-spacing: .06em; color: rgba(255,255,255,.55);
+    padding: 6px 12px; border-radius: 10px; background: rgba(255,255,255,.06); white-space: nowrap; }
+  .gun-status.price { color: #ffe23a; background: rgba(45,120,55,.4); }
+  .gun-actions { display: flex; gap: 8px; padding: 0 13px 13px; }
+  .gun-actions.single { padding-bottom: 13px; }
+  .shop-buy { flex: 1; border: none; cursor: pointer; border-radius: 12px; padding: 11px 12px; font: 800 13.5px "Baloo 2", system-ui;
+    color: #06210f; background: linear-gradient(180deg,#8ff2ab,#37c267); box-shadow: inset 0 -3px 0 rgba(0,0,0,.22), 0 4px 10px rgba(40,160,80,.25);
+    transition: filter .12s, transform .05s; line-height: 1.15; }
+  .shop-buy.alt { color: #07243a; background: linear-gradient(180deg,#9bd6ff,#4aa3e6); box-shadow: inset 0 -3px 0 rgba(0,0,0,.22), 0 4px 10px rgba(40,120,200,.25); }
+  .shop-buy:hover { filter: brightness(1.08); }
+  .shop-buy:active { transform: translateY(1px); }
+  .shop-buy:disabled { cursor: default; color: rgba(255,255,255,.4); background: rgba(255,255,255,.06); box-shadow: none; }
+  .shop-buy small { display: block; font-weight: 700; font-size: 11px; opacity: .8; }
+  #shop-foot { text-align: center; font-size: 12px; font-weight: 700; opacity: .5; padding: 4px 0 14px; }
+`;
+document.head.appendChild(shopStyle);
+
+const shopScreen = document.createElement('div');
+shopScreen.id = 'shop-screen';
+shopScreen.innerHTML = `<div id="shop-card">
+  <div class="shop-head">
+    <div><div class="shop-title">🐧 Gunther's Armory</div><div class="shop-sub">Gear up, penguin</div></div>
+    <span id="shop-cash">💵 $0</span>
+  </div>
+  <div id="shop-items"></div>
+  <div id="shop-foot">Walk off the pad to leave</div>
+</div>`;
+document.body.appendChild(shopScreen);
+const shopItemsEl = shopScreen.querySelector('#shop-items');
+const shopCashEl = shopScreen.querySelector('#shop-cash');
+
+// Per-gun catalog. Each weapon owns its own buy / upgrade / ammo actions so the
+// storefront stays organized as more guns get added — just append a def with its
+// state accessors (and wire its firing later). The pistol maps to the live
+// weapon globals; future guns are stubbed as `locked` until they're implemented.
+const GUN_DEFS = [
+  {
+    id: 'pistol', icon: '🔫', name: 'Pistol', tag: 'Reliable semi-auto sidearm',
+    cost: 0, ammoPack: AMMO_PACK, ammoCost: () => pistolAmmoCost(),
+    owned: () => hasGun,
+    level: () => gunLevel,
+    maxed: () => gunLevel >= GUN_MAX_LEVEL,
+    upCost: () => upgradeCost,
+    ammoNow: () => ammoReserve,
+    ammoMax: () => RESERVE_MAX,
+    buy: () => shopGetPistol(),
+    upgrade: () => shopUpgrade(),
+    ammo: () => shopBuyAmmo(),
+  },
+  { id: 'shotgun', icon: '💥', name: 'Shotgun', tag: 'Close-range spread — coming soon', locked: true },
+  { id: 'smg', icon: '⚡', name: 'SMG', tag: 'Rapid-fire bullet hose — coming soon', locked: true },
+];
+
+function buildGunCard(def) {
+  if (def.locked) {
+    return `<div class="gun-card locked"><div class="gun-head">` +
+      `<div class="gun-ic">${def.icon}</div>` +
+      `<div class="gun-meta"><div class="gun-name">${def.name}</div><div class="gun-tag">${def.tag}</div></div>` +
+      `<div class="gun-status">SOON</div></div></div>`;
+  }
+  const owned = def.owned();
+  const lvl = def.level();
+  const badge = owned ? `<span class="gun-badge">Mk.${lvl}</span>` : '';
+  const status = owned
+    ? `<div class="gun-status">⦿ ${def.ammoNow()}/${def.ammoMax()}</div>`
+    : `<div class="gun-status price">${def.cost ? '$' + def.cost : 'FREE'}</div>`;
+
+  let actions;
+  if (!owned) {
+    const can = cash >= def.cost;
+    const label = def.cost ? `Buy — $${def.cost}` : 'Get for FREE';
+    actions = `<div class="gun-actions single"><button class="shop-buy" data-gun="${def.id}" data-act="buy"${can ? '' : ' disabled'}>${label}</button></div>`;
+  } else {
+    const maxed = def.maxed();
+    const upCost = def.upCost();
+    const upBtn = maxed
+      ? `<button class="shop-buy" disabled>Fully Maxed</button>`
+      : `<button class="shop-buy" data-gun="${def.id}" data-act="upgrade"${cash >= upCost ? '' : ' disabled'}>Upgrade → Mk.${lvl + 1}<small>$${upCost}</small></button>`;
+    const full = def.ammoNow() >= def.ammoMax();
+    const ammoCost = def.ammoCost();
+    const ammoBtn = full
+      ? `<button class="shop-buy alt" disabled>Ammo Full</button>`
+      : `<button class="shop-buy alt" data-gun="${def.id}" data-act="ammo"${cash >= ammoCost ? '' : ' disabled'}>Buy Ammo +${def.ammoPack}<small>$${ammoCost}</small></button>`;
+    actions = `<div class="gun-actions">${upBtn}${ammoBtn}</div>`;
+  }
+  return `<div class="gun-card ${owned ? 'owned' : ''}"><div class="gun-head">` +
+    `<div class="gun-ic">${def.icon}</div>` +
+    `<div class="gun-meta"><div class="gun-name">${def.name}${badge}</div><div class="gun-tag">${def.tag}</div></div>` +
+    `${status}</div>${actions}</div>`;
+}
+function renderShop() {
+  shopCashEl.textContent = `💵 $${cash}`;
+  shopItemsEl.innerHTML = GUN_DEFS.map(buildGunCard).join('');
+}
+shopItemsEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  const def = GUN_DEFS.find((d) => d.id === b.dataset.gun);
+  if (!def) return;
+  const act = b.dataset.act;
+  if (act === 'buy') def.buy();
+  else if (act === 'upgrade') def.upgrade();
+  else if (act === 'ammo') def.ammo();
+});
+
+function openShop() {
+  shopOpen = true;
+  firing = false;
+  dragging = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+  renderer.domElement.style.cursor = 'default';
+  ui.crosshair.style.display = 'none';
+  shopScreen.style.display = 'flex';
+  renderShop();
+  sfx.resume();
+}
+function closeShop() {
+  shopOpen = false;
+  shopScreen.style.display = 'none';
+  if (started && !gameOver && !spectating) {
+    renderer.domElement.style.cursor = 'none';
+    ui.crosshair.style.display = 'block';
+    // if we're still zoomed into first-person, recapture the mouse so look
+    // works again right away (otherwise it stays dead until you scroll out/in).
+    if (camDist <= FP_DIST && !document.pointerLockElement) {
+      const r = document.body.requestPointerLock();
+      if (r && r.catch) r.catch(() => {});   // ignore the no-gesture rejection
+    }
+  }
+}
+
+function shopGetPistol() {
+  if (hasGun) return;
   pickupGunNow();
+  renderShop();
 }
-
-function tryBuyUpgrade() {
-  if (!hasGun || !started || gameOver) return;
-  if (!nearShop()) return;
-  if (gunLevel >= GUN_MAX_LEVEL) { toast('Gunther: "She\'s maxed out, pal."'); return; }
-  if (cash < upgradeCost) { toast(`Gunther: "Come back with $${upgradeCost}."`); return; }
+function shopUpgrade() {
+  if (!hasGun || gunLevel >= GUN_MAX_LEVEL || cash < upgradeCost) return;
   cash -= upgradeCost;
   gunLevel++;
   // weighted-random gains: usually a small bump, occasionally a jackpot.
-  // pow() squashes the roll toward 0 so big upgrades are rare.
   const roll = Math.pow(Math.random(), 2.4);
   const dmgGain = Math.round((0.5 + roll * 5.5) * 10) / 10; // +0.5 .. +6.0 dmg
   const magGain = Math.round(2 + roll * 16);                // +2 .. +18 mag
   gunDamage = Math.round((gunDamage + dmgGain) * 10) / 10;
   MAG_SIZE += magGain;
-  RESERVE_MAX += magGain * 3;     // bigger guns carry more spare ammo
+  RESERVE_MAX += magGain * 3;
   ammo = MAG_SIZE;
   ammoReserve = RESERVE_MAX;      // upgrading fully restocks your ammo
   upgradeCost = Math.round(upgradeCost * 1.8);
@@ -1140,17 +1414,34 @@ function tryBuyUpgrade() {
   sfx.upgrade();
   const tier = roll > 0.65 ? '💥 JACKPOT UPGRADE!' : roll > 0.3 ? '✨ Solid upgrade' : '⚙️ Upgraded';
   toast(`${tier} Mk.${gunLevel} — +${dmgGain} dmg, +${magGain} mag • ammo refilled`);
+  renderShop();
+}
+function shopBuyAmmo() {
+  const price = pistolAmmoCost();
+  if (!hasGun || ammoReserve >= RESERVE_MAX || cash < price) return;
+  cash -= price;
+  ammoReserve = Math.min(RESERVE_MAX, ammoReserve + AMMO_PACK);
+  updateCashHUD();
+  updateWeaponHUD();
+  sfx.pickup();
+  toast(`📦 +${AMMO_PACK} rounds`);
+  renderShop();
 }
 
-function updateUpgrader() {
-  if (!started || gameOver || !nearShop()) { upgradePrompt.style.display = 'none'; return; }
-  upgradePrompt.style.display = 'block';
-  if (!hasGun) {
-    upgradePrompt.textContent = '🔫 Press E to grab the PISTOL (free)';
-  } else if (gunLevel >= GUN_MAX_LEVEL) {
-    upgradePrompt.textContent = '⚙️ Weapon maxed (Mk.' + gunLevel + ')';
-  } else {
-    upgradePrompt.textContent = `⚙️ Press F to upgrade weapon — $${upgradeCost}`;
+// per-frame: pulse the pad, and open/close the screen as the player enters/leaves
+function updateShop(dt, t) {
+  const active = started && !gameOver && !spectating && !!shopZone;
+  shopPad.visible = active;
+  if (active) {
+    const here = inShopZone();
+    shopPad.children[0].material.opacity = here ? 0.75 : 0.35 + 0.2 * (0.5 + 0.5 * Math.sin(t * 3));
+    shopPad.rotation.y += dt * 0.5;
+    if (here && !shopOpen) openShop();
+    else if (!here && shopOpen) closeShop();
+    // keep the open screen's prices/cash live
+    if (shopOpen) shopCashEl.textContent = `💵 $${cash}`;
+  } else if (shopOpen) {
+    closeShop();
   }
 }
 
@@ -1242,11 +1533,15 @@ function pickZombieType() {
   const runner = Math.min(0.34, 0.10 + round * 0.018);
   const bomber = round >= 4 ? Math.min(0.16, 0.03 + round * 0.010) : 0;
   const spitter = round >= 5 ? Math.min(0.16, 0.03 + round * 0.010) : 0;
+  const siren = round >= 6 ? Math.min(0.12, 0.025 + round * 0.008) : 0;
+  const gasser = round >= 7 ? Math.min(0.13, 0.03 + round * 0.008) : 0;
   let acc = 0;
   if (r < (acc += brute)) return 'brute';
   if (r < (acc += runner)) return 'runner';
   if (r < (acc += bomber)) return 'bomber';
   if (r < (acc += spitter)) return 'spitter';
+  if (r < (acc += siren)) return 'siren';
+  if (r < (acc += gasser)) return 'gasser';
   return 'shambler';
 }
 
@@ -1264,6 +1559,12 @@ function spawnZombie() {
     cfg = { color: 0xe8702a, scale: 0.95, hp: Math.max(1, baseHp - 1), speedBonus: 1.0 + Math.min(1.5, round * 0.05), cashReward: 22, contactDmg: 0 };
   } else if (type === 'spitter') {
     cfg = { color: 0x6cc24a, scale: 1.0, hp: baseHp + 1, speedBonus: -0.2, cashReward: 20, contactDmg: 6 };
+  } else if (type === 'siren') {
+    // support unit: hangs back, screeches to disorient you + enrage the horde
+    cfg = { color: 0xc94f9c, scale: 1.05, hp: baseHp + 2, speedBonus: -0.5, cashReward: 28, contactDmg: 6 };
+  } else if (type === 'gasser') {
+    // bursts into a lingering toxic cloud on death — don't stand where it falls
+    cfg = { color: 0x6b7a55, scale: 1.0, hp: baseHp + 1, speedBonus: 0.1, cashReward: 24, contactDmg: 7 };
   } else {
     cfg = { color: ZOMBIE_COLORS[Math.floor(Math.random() * ZOMBIE_COLORS.length)], scale: 1, hp: baseHp, speedBonus: Math.min(2.2, round * 0.1), cashReward: 10, contactDmg: 7 };
   }
@@ -1274,7 +1575,7 @@ function spawnZombie() {
 
 function spawnBoss() {
   const { x, z } = edgeSpawnPoint();
-  const hp = 28 + round * 8;
+  const hp = 120 + round * 30;   // a real damage sponge — should take a sustained fight
   const boss = addNPC({ color: 0x6a2233, x, z, zombie: true, type: 'boss', scale: 2.5, hp, speedBonus: -0.7, cashReward: 300, contactDmg: 22 });
   boss.hb.sprite.visible = false; // uses the big top bar instead
   zSpawned++;
@@ -1440,6 +1741,8 @@ function killNPC(npc, point, headshot = false, attackerId = mpMyId()) {
   updateWeaponHUD();
   spawnBloodPool(npc.group.position.x, npc.group.position.z);
   spawnBloodBurst(point);
+  // gas-mask penguins rupture into a lingering toxic cloud where they fall
+  if (npc.type === 'gasser') spawnGasCloud(npc.group.position.x, npc.group.position.z);
 }
 
 // =====================================================================
@@ -2049,8 +2352,11 @@ function fire() {
     const headshot = bestType !== 'boss' && onRay.y >= groupY + 1.7 * bestScale;
     const dmg = gunDamage * (headshot ? 2 : 1) * damageFalloff(bestAlong);
     if (isClient) {
-      // report to the host; show local feedback immediately
-      hitOut.push({ nid: bestNid, dmg, hs: headshot });
+      // report to the host (per-hit id so nothing is dropped) and predict the
+      // result locally so the enemy reacts NOW instead of a round-trip later
+      hitOut.push({ hid: ++localHitId, nid: bestNid, dmg, hs: headshot });
+      if (hitOut.length > 24) hitOut.shift();
+      predictGhostHit(best, dmg);
       spawnBloodBurst(bestCenter.clone(), _ray.direction.clone());
       showHitMarker(false);
       sfx.hit();
@@ -2276,6 +2582,117 @@ function freezePlayer() {
   sfx.freeze();
   toast('🧊 Frozen solid! The cold is killing you!');
 }
+
+// ---------------------------------------------------------------------
+//  Siren screech: disorients the player (woozy overlay + camera roll wobble
+//  + slowed movement) and enrages nearby zombies. The disorient is a per-
+//  machine effect (each player feels their own), so it stays multiplayer-safe.
+// ---------------------------------------------------------------------
+const DISORIENT_TIME = 3.2;     // seconds of woozy vision
+const DISORIENT_SLOW = 0.55;    // movement speed multiplier while reeling
+const ENRAGE_TIME = 5.0;        // seconds nearby zombies stay enraged
+const ENRAGE_MULT = 1.55;       // speed multiplier for enraged zombies
+const SCREECH_RANGE = 17;       // trigger distance
+const SCREECH_RADIUS = 14;      // effect radius of the shockwave
+const SCREECH_DMG = 8;          // chip damage when the blast connects
+const SCREECH_KNOCK = 17;       // horizontal shove strength
+const SCREECH_LIFT = 6.5;       // upward pop
+let disorientT = 0;
+let disorientRoll = 0;          // current camera roll offset (read by updateCamera)
+const knockVel = new THREE.Vector3();   // external shove impulse, decays in move()
+
+// boss ground pound
+const POUND_RANGE = 9;          // how close the player must be to trigger a slam
+const POUND_RADIUS = 10;        // shockwave radius
+const POUND_WINDUP = 0.7;       // tell duration
+const POUND_DMG = 18;
+const STUN_TIME = 1.6;          // seconds the player is rooted
+let stunnedT = 0;
+
+const dizzyOverlay = document.createElement('div');
+dizzyOverlay.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;mix-blend-mode:screen;background:radial-gradient(120% 120% at 50% 50%, rgba(220,90,200,.05) 20%, rgba(180,40,170,.4) 70%, rgba(120,10,120,.7));transition:opacity .15s';
+document.body.appendChild(dizzyOverlay);
+
+function disorientPlayer(intensity = 1) {
+  if (gameOver || spectating || !started) return;
+  disorientT = Math.max(disorientT, DISORIENT_TIME * intensity);
+  toast('💫 Your head is spinning!');
+}
+// shove the player away from a point and pop them up a little (shockwave feel)
+function knockbackPlayer(ox, oz, strength = SCREECH_KNOCK, lift = SCREECH_LIFT) {
+  if (gameOver || spectating || !started) return;
+  let dx = player.group.position.x - ox, dz = player.group.position.z - oz;
+  const l = Math.hypot(dx, dz) || 1;
+  knockVel.set((dx / l) * strength, 0, (dz / l) * strength);
+  velY = Math.max(velY, lift);
+  onGround = false;
+}
+// full local effect of a screech catching the player: shove + pop + dizzy + chip dmg
+function screechHitLocalPlayer(ox, oz) {
+  knockbackPlayer(ox, oz);
+  disorientPlayer(1);
+  damagePlayer(SCREECH_DMG);
+}
+// boss ground pound caught the local player: rooted in place + heavy chip damage
+function stunPlayer(dur) {
+  if (gameOver || spectating || !started) return;
+  stunnedT = Math.max(stunnedT, dur);
+  disorientT = Math.max(disorientT, dur);   // reuse the woozy screen/camera wobble
+  toast('💥 Stunned!');
+}
+function groundPoundHitLocalPlayer() {
+  stunPlayer(STUN_TIME);
+  damagePlayer(POUND_DMG);
+}
+function updateDisorient(dt, t) {
+  if (gameOver || spectating || !started) disorientT = 0;
+  if (disorientT > 0) disorientT = Math.max(0, disorientT - dt);
+  const k = clamp(disorientT / DISORIENT_TIME, 0, 1);
+  // woozy screen pulse + a rolling camera tilt that eases off as it wears away
+  dizzyOverlay.style.opacity = (k * (0.55 + 0.25 * Math.sin(t * 6))).toFixed(3);
+  disorientRoll = k * 0.13 * Math.sin(t * 4.5);
+}
+
+// expanding shockwave ring VFX, stamped at a screech origin
+const screechRings = [];
+function spawnScreechRing(x, y, z, color = 0xff5ad0) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 1.1, 40),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(x, y + 0.15, z);
+  world.add(ring);
+  screechRings.push({ mesh: ring, life: 0 });
+}
+function updateScreechRings(dt) {
+  for (let i = screechRings.length - 1; i >= 0; i--) {
+    const r = screechRings[i];
+    r.life += dt;
+    const s = 1 + r.life * 26;                 // races outward to ~screech radius
+    r.mesh.scale.set(s, s, s);
+    r.mesh.material.opacity = Math.max(0, 0.8 - r.life * 1.1);
+    if (r.life > 0.75) { world.remove(r.mesh); r.mesh.geometry.dispose(); screechRings.splice(i, 1); }
+  }
+}
+
+// enrage every living zombie within range of a screech (host authority).
+// A red emissive tint + faster movement makes the buff readable and dangerous.
+function enrageNearbyZombies(x, z, radius) {
+  for (const n of npcs) {
+    if (n.dead || !n.isZombie || n.type === 'boss') continue;
+    if (Math.hypot(n.group.position.x - x, n.group.position.z - z) <= radius) n.enrageT = ENRAGE_TIME;
+  }
+}
+// red glow that marks an enraged penguin (works for host npcs + client ghosts)
+function setEnrageTint(pen, on) {
+  const v = on ? 0.55 : 0;
+  for (const part of [pen.parts.body, pen.parts.head]) {
+    if (!part || !part.material || !part.material.emissive) continue;
+    part.material.emissive.setHex(0xff2a2a);
+    part.material.emissiveIntensity = v;
+  }
+}
 // freeze the local player if they're standing on an armed crater at (x,z)
 function tryFreezeAt(x, z) {
   if (frozenTimer > 0 || gameOver || spectating || !started) return;
@@ -2389,6 +2806,111 @@ function clientCraters() {
   for (const [id, gc] of ghostCraters) {
     if (!seen.has(id)) { world.remove(gc.group); ghostCraters.delete(id); }
   }
+}
+
+// =====================================================================
+//  Toxic gas clouds — a dying gas-mask penguin bursts into a cloud that
+//  lingers on the map and poisons any player inside it. Host-authoritative
+//  and replicated to clients like ice craters; each machine poisons only its
+//  own local player, so it stays multiplayer-correct.
+// =====================================================================
+const GAS_LIFE = 13;        // seconds the cloud lingers
+const GAS_R = 3.3;          // damage radius
+const GAS_TICK = 6;         // damage per tick
+const GAS_TICK_T = 0.8;     // seconds between ticks (~7.5 dps)
+const gasClouds = [];
+let nextGasId = 1;
+
+const gasOverlay = document.createElement('div');
+gasOverlay.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(120% 120% at 50% 60%, rgba(150,210,90,.05) 25%, rgba(95,175,55,.34) 74%, rgba(55,120,35,.6));transition:opacity .2s';
+document.body.appendChild(gasOverlay);
+
+function makeGasMesh() {
+  const g = new THREE.Group();
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2 + Math.random();
+    const r = GAS_R * (0.18 + Math.random() * 0.6);
+    const m = new THREE.MeshStandardMaterial({ color: 0x86c25a, emissive: 0x3f6a26, emissiveIntensity: 0.3, transparent: true, opacity: 0.3, roughness: 1, depthWrite: false });
+    const puff = mesh(new THREE.SphereGeometry(0.9 + Math.random() * 0.8, 12, 10), m, false, false);
+    puff.position.set(Math.cos(a) * r, 0.5 + Math.random() * 1.0, Math.sin(a) * r);
+    puff.userData.bob = Math.random() * 6;
+    g.add(puff);
+  }
+  return g;
+}
+function setGasOpacity(group, o) {
+  group.traverse((c) => { if (c.material) c.material.opacity = 0.3 * o; });
+}
+function animateGas(group, dt, t) {
+  group.rotation.y += dt * 0.25;
+  for (const c of group.children) {
+    if (c.userData.bob != null) c.position.y += Math.sin(t * 1.4 + c.userData.bob) * dt * 0.25;
+  }
+}
+function gasFade(life) {
+  return life < 0.6 ? life / 0.6 : life > GAS_LIFE - 1.5 ? Math.max(0, (GAS_LIFE - life) / 1.5) : 1;
+}
+function spawnGasCloud(x, z) {
+  const group = makeGasMesh();
+  group.position.set(x, groundHeightAt(x, z, 0) + 0.1, z);
+  world.add(group);
+  gasClouds.push({ id: nextGasId++, x, z, group, life: 0 });
+  sfx.gas();
+}
+
+// shared poison tick: chips the local player while they stand in any gas
+let gasHurtTick = 0;
+function tickGasDamage(inside, dt) {
+  if (inside && started && !gameOver && !spectating) {
+    gasOverlay.style.opacity = '1';
+    gasHurtTick -= dt;
+    if (gasHurtTick <= 0) { gasHurtTick = GAS_TICK_T; damagePlayer(GAS_TICK); }
+  } else {
+    gasOverlay.style.opacity = '0';
+    gasHurtTick = 0;     // first tick lands immediately on re-entry
+  }
+}
+function playerInGasList(list) {
+  const p = player.group.position;
+  for (const c of list) {
+    if (c.life != null && gasFade(c.life) <= 0.2) continue;   // not yet thick / dissipating
+    if (Math.hypot(p.x - c.x, p.z - c.z) < GAS_R) return true;
+  }
+  return false;
+}
+// HOST/SOLO: age + animate clouds and poison the local player
+function updateGasClouds(dt, t) {
+  for (let i = gasClouds.length - 1; i >= 0; i--) {
+    const c = gasClouds[i];
+    c.life += dt;
+    animateGas(c.group, dt, t);
+    setGasOpacity(c.group, gasFade(c.life));
+    if (c.life >= GAS_LIFE) { world.remove(c.group); gasClouds.splice(i, 1); }
+  }
+  tickGasDamage(playerInGasList(gasClouds), dt);
+}
+// CLIENT: mirror the host's clouds and poison ourselves if we stand in one
+const ghostGas = new Map();   // id -> { group, x, z }
+function clientGas(dt, t) {
+  const arr = getGlobal('gas') || [];
+  const seen = new Set();
+  for (const e of arr) {
+    const [id, x, z] = e;
+    seen.add(id);
+    let gg = ghostGas.get(id);
+    if (!gg) {
+      const group = makeGasMesh();
+      group.position.set(x, groundHeightAt(x, z, 0) + 0.1, z);
+      world.add(group);
+      gg = { group, x, z };
+      ghostGas.set(id, gg);
+    }
+    animateGas(gg.group, dt, t);
+  }
+  for (const [id, gg] of ghostGas) {
+    if (!seen.has(id)) { world.remove(gg.group); ghostGas.delete(id); }
+  }
+  tickGasDamage(playerInGasList([...ghostGas.values()]), dt);
 }
 
 function updateWeapons(dt) {
@@ -2561,6 +3083,7 @@ function updateCamera() {
     const fwd = new THREE.Vector3(-Math.sin(yaw) * cp, -sp, -Math.cos(yaw) * cp);
     camera.position.lerp(head, 1 - Math.exp(-30 * lastDt));
     camera.lookAt(camera.position.clone().add(fwd));
+    if (disorientRoll) camera.rotateZ(disorientRoll);   // woozy tilt while disoriented
     // crosshair stays locked to screen center
     ui.crosshair.style.left = '50%';
     ui.crosshair.style.top = '50%';
@@ -2586,6 +3109,7 @@ function updateCamera() {
   desiredPos.y = Math.max(desiredPos.y, 0.9);
   camera.position.lerp(desiredPos, 1 - Math.exp(-18 * lastDt));
   camera.lookAt(target);
+  if (disorientRoll) camera.rotateZ(disorientRoll);   // woozy tilt while disoriented
 }
 // A collider only counts as a wall for an entity standing at feet height `fy`
 // if its top rises more than a step above the feet (otherwise you step onto it)
@@ -3039,6 +3563,128 @@ function handleBruteRoll(npc, pos, tgt, distP, distLocal, reach, dt, t) {
   return false;
 }
 
+// Siren screech: rear back during a wind-up, then unleash a shockwave that
+// disorients the player and enrages the surrounding horde. Owns the siren's
+// movement only during the wind-up (returns true); otherwise she chases normally.
+const SCREECH_WINDUP = 0.75;
+function handleSirenScreech(npc, pos, tgt, distP, dt, t) {
+  const ss = npc.screechState || 'none';
+  const baseS = npc.scale;
+  if (ss === 'none') {
+    npc.screechCD = (npc.screechCD ?? (3.5 + Math.random() * 3)) - dt;
+    if (npc.onGround !== false && npc.screechCD <= 0 && distP < SCREECH_RANGE) {
+      npc.screechState = 'windup';
+      npc.screechTimer = SCREECH_WINDUP;
+      npc.screeching = true;
+      npc.moving = false;
+      sfx.groan();
+      broadcastChat(npc.group, 'AAAIEEE!', 3.2 + baseS * 1.1, npc.netId);
+    }
+    return false;
+  }
+  if (ss === 'windup') {
+    npc.moving = false;
+    npc.screechTimer -= dt;
+    npc.heading = Math.atan2(tgt.x - pos.x, tgt.z - pos.z);
+    npc.group.rotation.y = lerpAngle(npc.group.rotation.y, npc.heading, 1 - Math.exp(-12 * dt));
+    const k = clamp(1 - npc.screechTimer / SCREECH_WINDUP, 0, 1);
+    const puff = Math.sin(k * Math.PI) * 0.16;              // chest swells as the scream builds
+    npc.group.scale.set(baseS * (1 + puff), baseS * (1 + puff * 1.4), baseS * (1 + puff));
+    npc.group.rotation.x = -0.2 * k;                        // rear back
+    if (npc.screechTimer <= 0) {
+      fireScreech(npc, pos);
+      npc.screechState = 'none';
+      npc.screechCD = 7 + Math.random() * 4;
+      npc.screeching = false;
+      npc.group.scale.setScalar(baseS);
+      npc.group.rotation.x = 0;
+    }
+    npcGroundVertical(npc, dt);
+    return true;
+  }
+  return false;
+}
+function fireScreech(npc, pos) {
+  sfx.screech();
+  spawnScreechRing(pos.x, groundHeightAt(pos.x, pos.z, 0), pos.z);
+  // each machine hits its OWN player if inside the blast (host applies to itself
+  // here; clients replay this from the screech feed): shove + pop + dizzy + dmg
+  if (Math.hypot(player.group.position.x - pos.x, player.group.position.z - pos.z) <= SCREECH_RADIUS) {
+    screechHitLocalPlayer(pos.x, pos.z);
+  }
+  enrageNearbyZombies(pos.x, pos.z, SCREECH_RADIUS);
+  if (netRole() === 'host') {
+    screechFeed.push({ seq: ++screechSeq, x: Math.round(pos.x * 10) / 10, z: Math.round(pos.z * 10) / 10, r: SCREECH_RADIUS });
+    if (screechFeed.length > 8) screechFeed.shift();
+  }
+}
+
+// Boss ground pound: when the player presses in close, the boss rears up and
+// slams the ground, sending out a shockwave that stuns + hurts anyone nearby.
+// Owns the boss only during the wind-up/slam (returns true); otherwise it keeps
+// raining ice and chasing as usual.
+function handleBossPound(npc, pos, tgt, distP, dt, t) {
+  const ps = npc.poundState || 'none';
+  const baseS = npc.scale;
+  if (ps === 'none') {
+    npc.poundCD = (npc.poundCD ?? (4 + Math.random() * 3)) - dt;
+    if (npc.onGround !== false && npc.poundCD <= 0 && distP < POUND_RANGE) {
+      npc.poundState = 'windup';
+      npc.poundTimer = POUND_WINDUP;
+      npc.pounding = true;
+      npc.moving = false;
+      sfx.groan();
+      broadcastChat(npc.group, 'STOMP!', 4.6, npc.netId);
+    }
+    return false;
+  }
+  if (ps === 'windup') {
+    npc.moving = false;
+    npc.poundTimer -= dt;
+    npc.heading = Math.atan2(tgt.x - pos.x, tgt.z - pos.z);
+    npc.group.rotation.y = lerpAngle(npc.group.rotation.y, npc.heading, 1 - Math.exp(-10 * dt));
+    const k = clamp(1 - npc.poundTimer / POUND_WINDUP, 0, 1);
+    npc.group.scale.set(baseS * (1 + 0.12 * k), baseS * (1 + 0.3 * k), baseS * (1 + 0.12 * k));   // rear up tall
+    npc.group.rotation.x = -0.3 * k;
+    if (npc.poundTimer <= 0) {
+      fireBossPound(npc, pos);
+      npc.poundState = 'recover';
+      npc.poundTimer = 0.5;
+      npc.pounding = false;
+    }
+    npcGroundVertical(npc, dt);
+    return true;
+  }
+  if (ps === 'recover') {
+    npc.moving = false;
+    npc.poundTimer -= dt;
+    const kk = clamp(npc.poundTimer / 0.5, 0, 1);
+    npc.group.scale.set(baseS * (1 + 0.3 * kk), baseS * (1 - 0.2 * kk), baseS * (1 + 0.3 * kk));   // slam squash → ease back
+    if (npc.poundTimer <= 0) {
+      npc.poundState = 'none';
+      npc.poundCD = 6 + Math.random() * 4;
+      npc.group.scale.setScalar(baseS);
+      npc.group.rotation.x = 0;
+    }
+    npcGroundVertical(npc, dt);
+    return true;
+  }
+  return false;
+}
+function fireBossPound(npc, pos) {
+  sfx.land();
+  sfx.groan();
+  spawnScreechRing(pos.x, groundHeightAt(pos.x, pos.z, 0), pos.z, 0xffd9a0);
+  // each machine stuns its OWN player if inside the slam (host here; clients via feed)
+  if (Math.hypot(player.group.position.x - pos.x, player.group.position.z - pos.z) <= POUND_RADIUS) {
+    groundPoundHitLocalPlayer();
+  }
+  if (netRole() === 'host') {
+    poundFeed.push({ seq: ++poundSeq, x: Math.round(pos.x * 10) / 10, z: Math.round(pos.z * 10) / 10, r: POUND_RADIUS });
+    if (poundFeed.length > 8) poundFeed.shift();
+  }
+}
+
 function currentZone() {
   let nearest = zones[0];
   let dist = Infinity;
@@ -3061,6 +3707,7 @@ document.addEventListener('pointerlockchange', () => {
   }
 });
 document.addEventListener('mousemove', (e) => {
+  if (shopOpen) return;   // free OS cursor for the storefront screen
   const mouseLook = dragging || (firstPerson && document.pointerLockElement === document.body);
   if (mouseLook) {
     // right-drag (or first-person) moves the view directly
@@ -3076,7 +3723,7 @@ document.addEventListener('mousemove', (e) => {
   }
 });
 document.addEventListener('wheel', (e) => {
-  if (editorActive) return;
+  if (editorActive || shopOpen) return;
   if (!started && !spectating) return;
   const wasFP = camDist <= FP_DIST;
   camDist = clamp(camDist + e.deltaY * 0.01, CAM_MIN_DIST, CAM_MAX_DIST);
@@ -3093,10 +3740,15 @@ document.addEventListener('wheel', (e) => {
   }
 }, { passive: true });
 document.addEventListener('mousedown', (e) => {
-  if (editorActive) return;
+  if (editorActive || shopOpen) return;   // clicks belong to the storefront screen
   if (!started) return;
   sfx.resume();
   const onCanvas = e.target === renderer.domElement;
+  // safety net: if we're in first-person without a mouse lock (e.g. just stepped
+  // out of the shop), this click re-captures it so look resumes immediately.
+  if (firstPerson && onCanvas && !dragging && !document.pointerLockElement) {
+    document.body.requestPointerLock();
+  }
   if (e.button === 2 && onCanvas) {
     // right button: begin camera orbit (reticle snaps to center while looking)
     dragging = true;
@@ -3127,8 +3779,7 @@ document.addEventListener('keydown', (e) => {
   if (!started) return;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyR' && hasGun) reloadGun();
-  if (e.code === 'KeyE') { buyPistol(); tryInteractGameObjects(); }
-  if (e.code === 'KeyF') tryBuyUpgrade();
+  if (e.code === 'KeyE') tryInteractGameObjects();
   if (e.code === 'KeyM') toast(sfx.toggle() ? '🔊 Sound on' : '🔇 Sound muted');
   const idx = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
   if (idx >= 0) doEmote(idx);
@@ -3153,6 +3804,7 @@ function move(dt) {
   if (frozenTimer > 0) {
     frozenTimer = Math.max(0, frozenTimer - dt);
     velocity.set(0, 0, 0);
+    knockVel.set(0, 0, 0);
     moving = false;
     velY -= GRAVITY * dt;
     let fy = player.group.position.y + velY * dt;
@@ -3167,6 +3819,20 @@ function move(dt) {
       if (gameOver || spectating) return;   // the cold finished us off
     }
     if (frozenTimer === 0) { playerIce.visible = false; frostOverlay.style.opacity = '0'; }
+    return;
+  }
+
+  // ---- stunned (boss ground pound) — rooted but no DoT; gravity still applies ----
+  if (stunnedT > 0) {
+    stunnedT = Math.max(0, stunnedT - dt);
+    velocity.set(0, 0, 0);
+    knockVel.set(0, 0, 0);
+    moving = false;
+    velY -= GRAVITY * dt;
+    let fy = player.group.position.y + velY * dt;
+    const gy = groundHeightAt(player.group.position.x, player.group.position.z, 0);
+    if (fy <= gy) { fy = gy; velY = 0; onGround = true; }
+    player.group.position.y = fy;
     return;
   }
 
@@ -3195,7 +3861,8 @@ function move(dt) {
     desired.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     const walking = keys.has('ShiftLeft') || keys.has('ShiftRight');
     const boost = speedBoostT > 0 ? SPEED_BOOST_MULT : 1;
-    const speed = (walking ? WALK_SPEED : RUN_SPEED) * boost;
+    const woozy = disorientT > 0 ? DISORIENT_SLOW : 1;   // siren screech slows you
+    const speed = (walking ? WALK_SPEED : RUN_SPEED) * boost * woozy;
     velocity.lerp(desired.multiplyScalar(speed), 1 - Math.exp(-12 * dt));
     const targetYaw = Math.atan2(velocity.x, velocity.z);
     player.group.rotation.y = lerpAngle(player.group.rotation.y, targetYaw, 1 - Math.exp(-12 * dt));
@@ -3212,10 +3879,14 @@ function move(dt) {
     const g = probeGround(x, z);
     return g.hit && g.normY < COS_MAX_SLOPE && (g.y - cur.y) > STEP_UP;
   };
-  const tryX = cur.clone(); tryX.x += velocity.x * dt;
+  // combine input velocity with any external knockback impulse (siren shockwave),
+  // then bleed the impulse off so the shove is a quick burst, not permanent drift
+  const vx = velocity.x + knockVel.x, vz = velocity.z + knockVel.z;
+  const tryX = cur.clone(); tryX.x += vx * dt;
   if (!moveBlocked(cur, tryX) && !blockedBySlope(tryX.x, cur.z)) cur.x = tryX.x;
-  const tryZ = cur.clone(); tryZ.z += velocity.z * dt;
+  const tryZ = cur.clone(); tryZ.z += vz * dt;
   if (!moveBlocked(cur, tryZ) && !blockedBySlope(cur.x, tryZ.z)) cur.z = tryZ.z;
+  knockVel.multiplyScalar(Math.exp(-6 * dt));
 
   // ---- ground following with smooth step/slope easing ----
   // The body eases toward the surface height instead of teleporting, so small
@@ -3342,6 +4013,12 @@ function respawnPlayer() {
   ui.crosshair.style.display = 'block';
   moveReticle(lastMouse.x, lastMouse.y);
   renderer.domElement.style.cursor = 'none';
+  // if we respawn still zoomed into first-person, recapture the mouse so look
+  // works immediately (a click also re-grabs it as a fallback).
+  if (camDist <= FP_DIST && !document.pointerLockElement) {
+    const r = document.body.requestPointerLock();
+    if (r && r.catch) r.catch(() => {});
+  }
   toast('🔁 Respawned — back in the fight!');
 }
 
@@ -3553,9 +4230,9 @@ function updateRemotePlayers(dt, t) {
 //  snapshot as "ghost" entities, report their hits/pickups to the host,
 //  and apply damage to themselves locally.
 // =====================================================================
-const TYPE_LIST = ['shambler', 'runner', 'brute', 'bomber', 'spitter', 'boss', 'peaceful'];
+const TYPE_LIST = ['shambler', 'runner', 'brute', 'bomber', 'spitter', 'boss', 'peaceful', 'siren', 'gasser'];
 const TYPE_IDX = Object.fromEntries(TYPE_LIST.map((t, i) => [t, i]));
-const CONTACT_DMG = { shambler: 7, runner: 5, brute: 14, spitter: 6, boss: 22, bomber: 0, peaceful: 0 };
+const CONTACT_DMG = { shambler: 7, runner: 5, brute: 14, spitter: 6, boss: 22, bomber: 0, peaceful: 0, siren: 6, gasser: 7 };
 
 function netRole() {
   if (!mpActive()) return 'solo';
@@ -3608,6 +4285,10 @@ const killFeed = [];
 let killSeq = 0;
 const chatFeed = [];        // zombie taunts → mirrored to every client
 let chatSeq = 0;
+const screechFeed = [];     // siren screeches → each client rings + disorients itself
+let screechSeq = 0;
+const poundFeed = [];       // boss ground pounds → each client rings + stuns itself
+let poundSeq = 0;
 let bcastAcc = 0;
 
 // show a zombie taunt locally and (on the host) queue it for every client
@@ -3634,8 +4315,10 @@ function hostBroadcast() {
       Math.max(0, Math.ceil(n.hp)),
       n.maxHp,
       Math.round(n.scale * 100) / 100,
-      (n.dead ? 1 : 0) | (n.moving ? 2 : 0) | (n.isZombie ? 4 : 0) | (rollCode << 3),
+      (n.dead ? 1 : 0) | (n.moving ? 2 : 0) | (n.isZombie ? 4 : 0) | (rollCode << 3) |
+        (n.screeching ? 32 : 0) | (n.enrageT > 0 ? 64 : 0) | (n.pounding ? 128 : 0),
       n.color,
+      Math.round(n.group.position.y * 100) / 100,   // vertical pos so ghosts climb terrain too
     ]);
   }
   setGlobal('z', arr);
@@ -3649,25 +4332,32 @@ function hostBroadcast() {
   setGlobal('candy', candyDrops.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10]));
   setGlobal('kf', killFeed);
   setGlobal('cf', chatFeed);
+  setGlobal('scr', screechFeed);
+  setGlobal('pound', poundFeed);
   setGlobal('craters', iceCraters.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10, craterArmed(c.life) ? 1 : 0]));
+  setGlobal('gas', gasClouds.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10]));
   setGlobal('env', { tod: Math.round(dayTime * 1000) / 1000, wx: Math.round(weatherCur * 100) / 100 });
 }
 
 // ---------- HOST: process incoming client inputs ----------
-const clientHitSeq = new Map();
+const clientHitDone = new Map();   // pid -> highest hit id already applied
 const clientPickSeq = new Map();
 function hostReadInputs() {
   eachRemoteState('hx', (pid, data) => {
-    const last = clientHitSeq.get(pid) || 0;
-    if (!data || data.seq <= last) return;
-    clientHitSeq.set(pid, data.seq);
+    if (!data || !data.hits) return;
+    let lastHid = clientHitDone.get(pid) || 0;
+    let maxHid = lastHid;
     for (const h of data.hits) {
+      const hid = h.hid || 0;
+      if (hid <= lastHid) continue;        // already applied this exact shot
+      if (hid > maxHid) maxHid = hid;
       const n = npcByNet(h.nid);
       if (n && !n.dead) {
         const pt = new THREE.Vector3(n.group.position.x, n.group.position.y + 1.2, n.group.position.z);
         damageNPC(n, h.dmg, pt, h.hs, pid);
       }
     }
+    clientHitDone.set(pid, maxHid);
   });
   eachRemoteState('pkq', (pid, data) => {
     const last = clientPickSeq.get(pid) || 0;
@@ -3709,18 +4399,48 @@ function createGhost(nid, type, scale, color, zombie) {
   const hb = makeHealthBar();
   hb.sprite.visible = false;
   world.add(hb.sprite);
-  const g = { pen, hb, type, scale, color, dead: false, deathT: 0, phase: Math.random() * 6, atkCD: 0, contactDmg: CONTACT_DMG[type] ?? 7, zombie };
+  const g = {
+    pen, hb, type, scale, color, dead: false, deathT: 0, phase: Math.random() * 6,
+    atkCD: 0, contactDmg: CONTACT_DMG[type] ?? 7, zombie,
+    // --- client-side prediction state ---
+    hostHp: 1, maxHp: 1, prevHp: null, predDmg: 0, predDead: false, predAge: 0, fxSpawned: false,
+    snapX: 0, snapZ: 0, snapT: 0, vx: 0, vz: 0,
+  };
   ghosts.set(nid, g);
   return g;
+}
+
+// CLIENT PREDICTION: a connecting player owns its own shots. Rather than wait a
+// full round-trip for the host to confirm damage, we subtract predicted damage
+// from the ghost immediately and down it on the spot when our shots would kill
+// it. clientReconcile then folds in the host's authoritative HP so the two stay
+// in lock-step (and a mis-prediction self-heals if the host disagrees).
+function predictGhostHit(g, dmg) {
+  if (!g || g.dead || g.predDead) return;
+  g.predDmg += dmg;
+  if (g.hostHp - g.predDmg <= 0) predictGhostDeath(g);
+}
+function predictGhostDeath(g) {
+  if (g.predDead || g.dead) return;
+  g.predDead = true;
+  g.predAge = 0;
+  g.hb.sprite.visible = false;
+  if (!g.fxSpawned) {
+    const grp = g.pen.group;
+    spawnBloodBurst(new THREE.Vector3(grp.position.x, grp.position.y + 1.0, grp.position.z));
+    spawnBloodPool(grp.position.x, grp.position.z);
+    g.fxSpawned = true;
+  }
 }
 function clientReconcile(dt, t) {
   const arr = getGlobal('z') || [];
   const seen = new Set();
   for (const e of arr) {
-    const [nid, x, z, ry, ti, hp, maxHp, scale, flags, color] = e;
+    const [nid, x, z, ry, ti, hp, maxHp, scale, flags, color, y = 0] = e;
     seen.add(nid);
     const dead = !!(flags & 1), mv = !!(flags & 2), zombie = !!(flags & 4);
     const rollCode = (flags >> 3) & 3;   // 0 none, 1 windup, 2 rolling, 3 recover
+    const screeching = !!(flags & 32), enraged = !!(flags & 64), pounding = !!(flags & 128);
     const type = TYPE_LIST[ti] || 'shambler';
     let g = ghosts.get(nid);
     const justCreated = !g;
@@ -3730,29 +4450,63 @@ function clientReconcile(dt, t) {
     g.type = type;
     g.contactDmg = CONTACT_DMG[type] ?? 7;
     const grp = g.pen.group;
+
+    // ---- reconcile predicted HP with the host's authoritative value ----
+    g.maxHp = maxHp;
+    // every point of damage the host confirms shrinks our pending prediction so
+    // the two never double-count (host + this client + other clients all stack)
+    if (g.prevHp != null && hp < g.prevHp) g.predDmg = Math.max(0, g.predDmg - (g.prevHp - hp));
+    g.prevHp = hp;
+    g.hostHp = hp;
+    const dispHp = Math.max(0, hp - g.predDmg);
+    const downed = g.dead || g.predDead;
+
+    // ---- dead-reckoning: extrapolate toward where the host says it's heading
+    // so fast movers sit on their true position instead of trailing the snapshot
+    if (justCreated) { g.snapX = x; g.snapZ = z; g.snapT = t; g.vx = 0; g.vz = 0; }
+    else if (x !== g.snapX || z !== g.snapZ) {
+      const dts = Math.max(0.02, t - g.snapT);
+      g.vx = clamp((x - g.snapX) / dts, -9, 9);
+      g.vz = clamp((z - g.snapZ) / dts, -9, 9);
+      g.snapX = x; g.snapZ = z; g.snapT = t;
+    }
+    const lead = downed ? 0 : 0.05;
     const k = justCreated ? 1 : 1 - Math.exp(-14 * dt);
-    grp.position.x += (x - grp.position.x) * k;
-    grp.position.z += (z - grp.position.z) * k;
+    grp.position.x += (x + g.vx * lead - grp.position.x) * k;
+    grp.position.z += (z + g.vz * lead - grp.position.z) * k;
+    grp.position.y += (y - grp.position.y) * k;   // follow terrain height (mounds, hills, jumps)
     grp.rotation.y = lerpAngle(grp.rotation.y, ry, k);
 
     if (dead && justCreated) { g.dead = true; g.deathT = 1; }  // arrived already dead — no FX
     else if (dead && !g.dead) {
-      g.dead = true; g.deathT = 0;
+      // host confirmed the kill — clear any prediction and play death FX once
+      g.dead = true; g.deathT = g.predDead ? 0.0001 : 0; g.predDead = false;
       g.hb.sprite.visible = false;
-      const pt = new THREE.Vector3(grp.position.x, grp.position.y + 1.0, grp.position.z);
-      spawnBloodBurst(pt);
-      spawnBloodPool(grp.position.x, grp.position.z);
-      if (type === 'bomber') explodeAt(grp.position);
+      if (!g.fxSpawned) {
+        const pt = new THREE.Vector3(grp.position.x, grp.position.y + 1.0, grp.position.z);
+        spawnBloodBurst(pt);
+        spawnBloodPool(grp.position.x, grp.position.z);
+        g.fxSpawned = true;
+      }
+      if (type === 'bomber') explodeAt(grp.position);   // explosion stays host-confirmed
+    } else if (!dead) {
+      // PREDICTION: our own shots have drained its HP — drop it instantly.
+      if (!g.predDead && zombie && dispHp <= 0) predictGhostDeath(g);
+      // safety: if the host never confirms (a lost packet / mis-predict), revive
+      // the ghost rather than leaving a phantom corpse lying around.
+      if (g.predDead) {
+        g.predAge += dt;
+        if (g.predAge > 1.0) { g.predDead = false; g.predDmg = 0; g.fxSpawned = false; }
+      }
     }
     // track roll state for client-side rendering + charge-hit detection
     g.rolling = rollCode === 2;
     if (rollCode === 2 && !g.wasRolling) g.rollHit = false;  // a fresh charge began
     g.wasRolling = rollCode === 2;
 
-    if (g.dead) {
+    if (downed) {
       g.deathT += dt;
       grp.rotation.z = lerpAngle(grp.rotation.z, Math.PI / 2, 1 - Math.exp(-9 * dt));
-      grp.position.y = Math.max(0, grp.position.y - dt * 0.6);
     } else if (rollCode === 1) {
       // wind-up: crouch low + rock back (mirrors the host's tell)
       g.windupK = Math.min(1, (g.windupK || 0) + dt / 0.6);
@@ -3760,7 +4514,6 @@ function clientReconcile(dt, t) {
       grp.scale.set(scale * (1 + squash * 0.6), scale * (1 - squash), scale * (1 + squash * 0.6));
       grp.rotation.x = -0.35 * g.windupK;
       grp.rotation.z = 0;
-      grp.position.y = 0;
     } else if (rollCode === 2) {
       // rolling: somersault forward along the locked heading
       g.windupK = 0;
@@ -3768,27 +4521,39 @@ function clientReconcile(dt, t) {
       grp.scale.setScalar(scale);
       grp.rotation.x = g.rollSpin;
       grp.rotation.z = 0;
-      grp.position.y = 0;
     } else if (rollCode === 3) {
       // recover: settle upright with a dizzy wobble
       const upright = Math.round(grp.rotation.x / (Math.PI * 2)) * (Math.PI * 2);
       grp.rotation.x = THREE.MathUtils.lerp(grp.rotation.x, upright, 1 - Math.exp(-8 * dt));
       grp.rotation.z = Math.sin(t * 20) * 0.1;
       grp.scale.setScalar(scale);
-      grp.position.y = 0;
+    } else if (screeching) {
+      // siren wind-up: rear back + swell as she screams (mirrors the host tell)
+      g.windupK = Math.min(1, (g.windupK || 0) + dt / SCREECH_WINDUP);
+      const puff = Math.sin(g.windupK * Math.PI) * 0.16;
+      grp.scale.set(scale * (1 + puff), scale * (1 + puff * 1.4), scale * (1 + puff));
+      grp.rotation.x = -0.2 * g.windupK;
+      grp.rotation.z = 0;
+    } else if (pounding) {
+      // boss wind-up: rear up tall before the slam (mirrors the host tell)
+      g.poundK = Math.min(1, (g.poundK || 0) + dt / POUND_WINDUP);
+      grp.scale.set(scale * (1 + 0.12 * g.poundK), scale * (1 + 0.3 * g.poundK), scale * (1 + 0.12 * g.poundK));
+      grp.rotation.x = -0.3 * g.poundK;
+      grp.rotation.z = 0;
     } else {
       if (grp.rotation.x) grp.rotation.x = 0;   // clear any leftover tumble
-      g.windupK = 0; g.rollSpin = 0;
+      g.windupK = 0; g.rollSpin = 0; g.poundK = 0;
       grp.scale.setScalar(scale);
       g.phase += dt * (mv ? 11 : 1.5);
       animatePenguin(g.pen, mv ? 1 : 0.2, t, g.phase);
-      grp.position.y = 0;
-      // wounded ghosts drip a blood trail too (HP is replicated, so it matches)
-      if (zombie) bleedTrail(g, grp, hp, maxHp, dt, mv);
+      // wounded ghosts drip a blood trail too (predicted HP keeps it responsive)
+      if (zombie) bleedTrail(g, grp, dispHp, maxHp, dt, mv);
     }
-    if (!g.dead && zombie && type !== 'boss') {
-      g.hb.set(hp / Math.max(1, maxHp));
-      g.hb.sprite.position.set(grp.position.x, 3.0 + scale * 1.0, grp.position.z);
+    // mirror the screech-enrage red glow on client ghosts
+    if (enraged !== g._enr) { setEnrageTint(g.pen, enraged); g._enr = enraged; }
+    if (!downed && zombie && type !== 'boss') {
+      g.hb.set(dispHp / Math.max(1, maxHp));   // shows predicted damage instantly
+      g.hb.sprite.position.set(grp.position.x, grp.position.y + 3.0 + scale * 1.0, grp.position.z);
       // hide the bar when a wall sits between the camera and the enemy
       g.hb.sprite.visible = !segmentBlocked(camera.position, _hbTmp.set(grp.position.x, grp.position.y + 1.3 * scale, grp.position.z));
     }
@@ -3803,7 +4568,7 @@ function clientReconcile(dt, t) {
 function clientGhostDanger(dt) {
   if (gameOver || !started) return;
   for (const [, g] of ghosts) {
-    if (g.dead || !g.zombie) continue;
+    if (g.dead || g.predDead || !g.zombie) continue;   // predicted-dead can't hurt us
     const p = g.pen.group.position;
     const reach = 1.2 + g.scale * 0.9;
     const d = Math.hypot(player.group.position.x - p.x, player.group.position.z - p.z);
@@ -3890,6 +4655,46 @@ function clientReadChats() {
   lastChatSeq = maxSeq;
 }
 
+// client replays siren screeches: rings + disorienting its own player if in blast
+let lastScreechSeq = 0;
+let screechSynced = false;
+function clientReadScreech() {
+  const sf = getGlobal('scr');
+  if (!sf || !sf.length) return;
+  let maxSeq = lastScreechSeq;
+  for (const e of sf) if (e.seq > maxSeq) maxSeq = e.seq;
+  if (!screechSynced) { screechSynced = true; lastScreechSeq = maxSeq; return; }
+  for (const e of sf) {
+    if (e.seq <= lastScreechSeq) continue;
+    sfx.screech();
+    spawnScreechRing(e.x, groundHeightAt(e.x, e.z, 0), e.z);
+    if (Math.hypot(player.group.position.x - e.x, player.group.position.z - e.z) <= (e.r || SCREECH_RADIUS)) {
+      screechHitLocalPlayer(e.x, e.z);
+    }
+  }
+  lastScreechSeq = maxSeq;
+}
+
+// client replays boss ground pounds: shockwave ring + stunning its own player if in blast
+let lastPoundSeq = 0;
+let poundSynced = false;
+function clientReadPound() {
+  const pf = getGlobal('pound');
+  if (!pf || !pf.length) return;
+  let maxSeq = lastPoundSeq;
+  for (const e of pf) if (e.seq > maxSeq) maxSeq = e.seq;
+  if (!poundSynced) { poundSynced = true; lastPoundSeq = maxSeq; return; }
+  for (const e of pf) {
+    if (e.seq <= lastPoundSeq) continue;
+    sfx.land();
+    spawnScreechRing(e.x, groundHeightAt(e.x, e.z, 0), e.z, 0xffd9a0);
+    if (Math.hypot(player.group.position.x - e.x, player.group.position.z - e.z) <= (e.r || POUND_RADIUS)) {
+      groundPoundHitLocalPlayer();
+    }
+  }
+  lastPoundSeq = maxSeq;
+}
+
 function updateBossBarFromNet() {
   const b = getGlobal('boss');
   if (b) { bossBar.style.display = 'block'; bossFill.style.width = (b.hp / Math.max(1, b.max) * 100) + '%'; }
@@ -3966,11 +4771,16 @@ function clientPickups(dt, t) {
 
 // ---------- CLIENT: outgoing hits ----------
 let hitSeq = 0;
-const hitOut = [];
+let localHitId = 0;     // monotonic id stamped on every shot that connects
+let lastSentHid = 0;
+const hitOut = [];      // rolling window of recent hits (host dedupes by hid)
 function flushHits() {
-  if (!hitOut.length) return;
+  // re-send the recent-hit window until a new hit appears; the per-hit `hid`
+  // lets the host process each shot exactly once even if it samples our state
+  // at a lower rate, so no hits (and no predicted kills) are ever lost.
+  if (localHitId === lastSentHid || !hitOut.length) return;
+  lastSentHid = localHitId;
   setMyState('hx', { seq: ++hitSeq, hits: hitOut.slice() }, true);
-  hitOut.length = 0;
 }
 
 // when becoming a client, the host owns the world — drop our local entities
@@ -3983,6 +4793,7 @@ function enterClientMode() {
   for (const s of spits) world.remove(s.m); spits.length = 0;
   for (const b of iceBalls) world.remove(b.m); iceBalls.length = 0;
   for (const c of iceCraters) world.remove(c.group); iceCraters.length = 0;
+  for (const c of gasClouds) world.remove(c.group); gasClouds.length = 0;
 }
 
 // =====================================================================
@@ -4035,6 +4846,12 @@ function updateNPCs(dt, t) {
 
     if (npc.hitFlash) npc.hitFlash = Math.max(0, npc.hitFlash - dt);
 
+    // siren screech enrage: speed buff for a few seconds, with a red glow tell
+    if (npc.enrageT > 0) {
+      npc.enrageT -= dt;
+      if (!npc._enrTint) { setEnrageTint(npc, true); npc._enrTint = true; }
+    } else if (npc._enrTint) { setEnrageTint(npc, false); npc._enrTint = false; }
+
     // a penguin tossed by the boss: ballistic arc, then resume the chase sprinting
     if (npc.flying) {
       npc.fvy -= ICE_GRAV * dt;
@@ -4063,6 +4880,16 @@ function updateNPCs(dt, t) {
       if (npc.type === 'brute') {
         npc.rollCD = (npc.rollCD ?? (3 + Math.random() * 3)) - dt;
         if (handleBruteRoll(npc, pos, tgt, distP, distLocal, reach, dt, t)) continue;
+      }
+
+      // sirens hang back and periodically scream — disorients you + enrages the horde
+      if (npc.type === 'siren') {
+        if (handleSirenScreech(npc, pos, tgt, distP, dt, t)) continue;
+      }
+
+      // boss slams the ground when you crowd it — shockwave that stuns + hurts
+      if (npc.type === 'boss') {
+        if (handleBossPound(npc, pos, tgt, distP, dt, t)) continue;
       }
 
       // random trash-talk in a chat bubble (only some penguins, staggered)
@@ -4116,7 +4943,7 @@ function updateNPCs(dt, t) {
 
       // approach (1), hold (0) or back away (-1)
       let approach = 1;
-      if (npc.type === 'spitter') approach = distP > 13 ? 1 : distP < 8 ? -1 : 0;
+      if (npc.type === 'spitter' || npc.type === 'siren') approach = distP > 13 ? 1 : distP < 8 ? -1 : 0;
       else if (distP < reach) approach = 0;
 
       const sep = npcSeparation(npc, pos);            // crowd spacing nudge
@@ -4159,6 +4986,7 @@ function updateNPCs(dt, t) {
         if (npc.lungeTimer <= 0) { npc.lunge = 0.5; npc.lungeTimer = 3 + Math.random() * 5; }
         let sp = npc.speed;
         if (npc.lunge > 0) { npc.lunge -= dt; sp *= 1.9; }
+        if (npc.enrageT > 0) sp *= ENRAGE_MULT;     // screech-enraged zombies charge faster
         // probe several candidate headings and take a clear one so they steer
         // AROUND buildings instead of grinding into corners. Two key details:
         //  - look a fixed distance ahead (not just this frame's tiny step) so a
@@ -4711,6 +5539,7 @@ function syncSceneRefs() {
   shopRec = placedObjects.find((r) => r.def.type === 'shop') || null;
   gunPickupRec = placedObjects.find((r) => r.def.type === 'gunpickup') || null;
   if (gunPickupRec) gunPickupRec.obj.visible = !hasGun;
+  computeShopZone();
 }
 
 // curated context handed to every component script (decoupled from internals).
@@ -5005,7 +5834,10 @@ function animate() {
     clientReadRounds();
     clientReadFeed();
     clientReadChats();
+    clientReadScreech();
+    clientReadPound();
     clientCraters();
+    clientGas(dt, t);
     updateBossBarFromNet();
     flushHits();
   } else {
@@ -5017,6 +5849,7 @@ function animate() {
     updateCandyDrops(dt, t);
     updateIceBalls(dt);
     updateIceCraters(dt);
+    updateGasClouds(dt, t);
     updateBossBar();
     if (role === 'host') {
       hostReadInputs();
@@ -5025,8 +5858,10 @@ function animate() {
     }
   }
   updateDamageVignette(dt, t);
+  updateDisorient(dt, t);
+  updateScreechRings(dt);
   updateGameObjects(dt, t);
-  updateUpgrader();
+  updateShop(dt, t);
   updateBlasts(dt);
   updateSpits(dt);
   updateCombo(dt);
