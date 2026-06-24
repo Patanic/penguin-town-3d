@@ -3,6 +3,12 @@ import {
   startMultiplayer, mpActive, mpPlayerCount, setLocalState, eachRemote, onRemoteLeave,
   mpRoomCode, mpInviteUrl, mpIsHost, mpMyId, setGlobal, getGlobal, setMyState, eachRemoteState,
 } from './multiplayer.js';
+import {
+  CATALOG, PALETTE, CATEGORIES, makeObject, defaultDef, mergedParams, registerType,
+} from './world/catalog.js';
+import { COMPONENTS, COMPONENT_TYPES, defaultComponent } from './world/components.js';
+import { defaultTown } from './world/defaultTown.js';
+import townLevel from './levels/town.json';
 
 // =====================================================================
 //  Penguin Town 3D — a cozy, original snowy social-world prototype.
@@ -153,6 +159,12 @@ const sfx = (() => {
     step(alt) { go((t) => noise(0.05, t, 0.12, 'lowpass', alt ? 520 : 380, 0.8)); },
     emote() { go((t) => tone(720, t, 0.08, 'triangle', 0.14, 1080)); },
     pickup() { go((t) => { tone(440, t, 0.05, 'square', 0.18, 660); noise(0.05, t + 0.05, 0.18, 'highpass', 3000); tone(880, t + 0.1, 0.1, 'triangle', 0.16); }); },
+    // two quick bites with a downward gnash — eating a candy bar
+    chomp() { go((t) => {
+      noise(0.07, t, 0.36, 'lowpass', 900, 0.8); tone(260, t, 0.07, 'sawtooth', 0.22, 110);
+      noise(0.07, t + 0.12, 0.34, 'lowpass', 760, 0.8); tone(210, t + 0.12, 0.08, 'sawtooth', 0.22, 85);
+      tone(1320, t + 0.2, 0.12, 'triangle', 0.14, 1760);   // sweet little chime to sell the sugar rush
+    }); },
     combo(n) { go((t) => { const base = Math.min(1300, 480 + n * 48); noise(0.03, t, 0.28, 'bandpass', base, 6); tone(base, t, 0.06, 'square', 0.2, base * 0.7); }); },
     death() { go((t) => { tone(440, t, 1.1, 'sawtooth', 0.3, 70); noise(0.8, t, 0.3, 'lowpass', 700); }); },
     uiClick() { go((t) => tone(660, t, 0.05, 'square', 0.12, 880)); },
@@ -483,558 +495,22 @@ function addSign(text, x, y, z, height = 2.6, opts) {
   return s;
 }
 
-// ---------- terrain ----------
-// sparkly snow texture
-const snowTex = (() => {
-  const c = document.createElement('canvas');
-  c.width = c.height = 512;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#f3fbff';
-  ctx.fillRect(0, 0, 512, 512);
-  // soft blue-grey blotches for subtle depth
-  for (let i = 0; i < 220; i++) {
-    ctx.fillStyle = `rgba(208,232,245,${0.05 + Math.random() * 0.12})`;
-    ctx.beginPath();
-    ctx.arc(Math.random() * 512, Math.random() * 512, 8 + Math.random() * 40, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // sparkles
-  for (let i = 0; i < 600; i++) {
-    ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.random() * 0.6})`;
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(8, 8);
-  return t;
-})();
-const snowGround = mesh(new THREE.CircleGeometry(120, 64), new THREE.MeshStandardMaterial({ map: snowTex, roughness: 0.92 }), false, true);
-snowGround.rotation.x = -Math.PI / 2;
-world.add(snowGround);
+// ---------- world dressing (data-driven) ----------
+// The entire town — terrain, snow mounds, the frozen lake, the toboggan
+// hill, the plaza floor, walkways, string lights, bunting, docks, ramp
+// rails, the central snow-giant landmark, location signs, the weapon shop,
+// Gunther and the pistol pickup — are all GameObject defs now (see
+// src/world/catalog.js + src/world/defaultTown.js). They load through the
+// level system into the editor layer so every piece is editable, movable
+// and deletable. Delete them all and you get a truly empty scene.
 
-// gentle snow mounds for depth
-for (let i = 0; i < 26; i++) {
-  const a = Math.random() * Math.PI * 2;
-  const r = 30 + Math.random() * 75;
-  const s = 2 + Math.random() * 5;
-  const mound = mesh(new THREE.SphereGeometry(s, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xeaf7ff, 0.95));
-  mound.scale.y = 0.35;
-  mound.position.set(Math.cos(a) * r, -0.2, Math.sin(a) * r);
-  mound.receiveShadow = true;
-  world.add(mound);
-}
-
-// frozen lake at the docks
-const lake = mesh(
-  new THREE.CircleGeometry(16, 64),
-  new THREE.MeshStandardMaterial({ color: 0x8fe1f6, metalness: 0.35, roughness: 0.12, transparent: true, opacity: 0.86 }),
-  false, true
-);
-lake.rotation.x = -Math.PI / 2;
-lake.position.set(2, 0.04, 38);
-world.add(lake);
-
-// raised toboggan hill
-const hill = mesh(new THREE.SphereGeometry(21, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xeaf8ff, 0.95));
-hill.scale.set(1.4, 0.5, 1.05);
-hill.position.set(34, -5, -22);
-hill.receiveShadow = true;
-world.add(hill);
-
-// decorated central plaza floor (snow-tiled with a compass star)
-const plazaTex = (() => {
-  const c = document.createElement('canvas');
-  c.width = c.height = 1024;
-  const ctx = c.getContext('2d');
-  const cx = 512, cy = 512;
-  // base
-  ctx.fillStyle = '#e3f1fa';
-  ctx.fillRect(0, 0, 1024, 1024);
-  // concentric tile rings
-  for (let r = 460; r > 60; r -= 70) {
-    ctx.strokeStyle = r % 140 === 460 % 140 ? 'rgba(150,190,215,0.6)' : 'rgba(180,210,230,0.55)';
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  // radial spokes
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(170,205,228,0.45)';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * 75, cy + Math.sin(a) * 75);
-    ctx.lineTo(cx + Math.cos(a) * 470, cy + Math.sin(a) * 470);
-    ctx.stroke();
-  }
-  // compass star in the middle
-  ctx.fillStyle = 'rgba(120,170,205,0.55)';
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const long = i % 2 === 0 ? 150 : 80;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(a - 0.16) * 40, cy + Math.sin(a - 0.16) * 40);
-    ctx.lineTo(cx + Math.cos(a) * long, cy + Math.sin(a) * long);
-    ctx.lineTo(cx + Math.cos(a + 0.16) * 40, cy + Math.sin(a + 0.16) * 40);
-    ctx.closePath();
-    ctx.fill();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-})();
-const plazaFloor = mesh(new THREE.CircleGeometry(14, 64), new THREE.MeshStandardMaterial({ map: plazaTex, roughness: 0.85 }), false, true);
-plazaFloor.rotation.x = -Math.PI / 2;
-plazaFloor.position.y = 0.06;
-world.add(plazaFloor);
-// raised stone border ring around the plaza
-const plazaRing = mesh(new THREE.TorusGeometry(14, 0.4, 10, 80), mat(0xcde0ec, 0.8));
-plazaRing.rotation.x = Math.PI / 2;
-plazaRing.position.y = 0.18;
-world.add(plazaRing);
-
-// ---------- pathways ----------
-function path(points, width = 5) {
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = new THREE.Vector3(points[i][0], 0.05, points[i][1]);
-    const b = new THREE.Vector3(points[i + 1][0], 0.05, points[i + 1][1]);
-    const delta = b.clone().sub(a);
-    const len = delta.length();
-    const slab = mesh(new THREE.BoxGeometry(width, 0.1, len + width * 0.4), mat(0xdfeef6), false, true);
-    slab.position.copy(a.clone().add(b).multiplyScalar(0.5));
-    slab.rotation.y = Math.atan2(delta.x, delta.z);
-    world.add(slab);
-  }
-}
-path([[0, 6], [0, 26], [2, 36]], 5.4);
-path([[0, 3], [-18, -6], [-32, -11]], 4.8);
-path([[0, 2], [15, -7], [31, -15]], 4.8);
-path([[-3, 4], [-16, 12], [-28, 20]], 4.6);
-
-// animated twinkle lights + glints
+// animated twinkle lights (emissive meshes tagged with userData.twinkle are
+// collected into this list by the level loader and pulsed in the animate loop)
 const twinkles = [];
-const BAUBLE_COLORS = [0xff6f61, 0xffd23f, 0x35c45f, 0x2f7fe0, 0x9b5de5, 0xff7ec8];
 
-// ---------- pine trees ----------
-function tree(x, z, size = 1) {
-  const trunk = addCylinder(x, 0, z, 0.32 * size, 0.4 * size, 2.4 * size, 0x7a4d2c, 10);
-  trunk.castShadow = true;
-  const snowy = Math.random() > 0.35;
-  const festive = Math.random() > 0.5;
-  for (let i = 0; i < 3; i++) {
-    const cone = mesh(new THREE.ConeGeometry((1.6 - i * 0.3) * size, 2.5 * size, 10), mat(i === 1 ? 0x2f8a63 : 0x247a55, 0.9));
-    cone.position.set(x, 1.7 * size + i * 1.05 * size, z);
-    cone.castShadow = true;
-    world.add(cone);
-    if (snowy) {
-      const cap = mesh(new THREE.ConeGeometry((1.62 - i * 0.3) * size, 0.5 * size, 10), mat(0xffffff));
-      cap.position.set(x, 1.7 * size + i * 1.05 * size + 1.0 * size, z);
-      world.add(cap);
-    }
-  }
-  if (festive) {
-    // glowing baubles tucked into the branches
-    for (let b = 0; b < 7; b++) {
-      const ang = Math.random() * Math.PI * 2;
-      const ry = 2.0 + Math.random() * 2.6;
-      const rad = (1.5 - (ry - 2) * 0.35) * size * (0.7 + Math.random() * 0.4);
-      const col = BAUBLE_COLORS[Math.floor(Math.random() * BAUBLE_COLORS.length)];
-      const bauble = mesh(new THREE.SphereGeometry(0.14 * size, 10, 10), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.1, roughness: 0.35 }), false, false);
-      bauble.position.set(x + Math.cos(ang) * rad, ry * size, z + Math.sin(ang) * rad);
-      world.add(bauble);
-      twinkles.push({ mat: bauble.material, base: 1.1, phase: Math.random() * 6 });
-    }
-    // star topper
-    const star = mesh(new THREE.OctahedronGeometry(0.3 * size), new THREE.MeshStandardMaterial({ color: 0xffe06a, emissive: 0xffcf3a, emissiveIntensity: 1.4, roughness: 0.3 }), false, false);
-    star.position.set(x, 4.9 * size, z);
-    world.add(star);
-    twinkles.push({ mat: star.material, base: 1.4, phase: Math.random() * 6 });
-  }
-  circleShadow(x, z, 1.2 * size);
-}
-[
-  [-45,-26,1.3],[-40,-18,0.95],[-48,-4,1.45],[-41,12,1.1],[-33,22,1.2],[-18,32,0.95],[-12,46,1.2],
-  [21,47,1.25],[37,37,1.2],[45,21,0.95],[50,4,1.45],[47,-20,1.15],[25,-36,0.95],[8,-36,1.25],[-10,-36,1.0],
-  [-46,34,1.1],[-38,40,0.9],[42,-34,1.0],
-].forEach((v) => tree(...v));
-
-// ---------- candy-cane lamp posts ----------
-const caneTex = stripeTextureV(0xe5384d, 0xffffff, 8);
-function lamp(x, z) {
-  const pole = mesh(new THREE.CylinderGeometry(0.13, 0.15, 4.2, 12), new THREE.MeshStandardMaterial({ map: caneTex, roughness: 0.6 }));
-  pole.position.set(x, 2.1, z);
-  pole.castShadow = true;
-  world.add(pole);
-  // lantern cage
-  const cap = mesh(new THREE.ConeGeometry(0.55, 0.6, 8), mat(0x2c3e50));
-  cap.position.set(x, 4.75, z);
-  world.add(cap);
-  const glass = mesh(new THREE.SphereGeometry(0.42, 16, 12), new THREE.MeshStandardMaterial({
-    color: 0xfff0b8, emissive: 0xffd97a, emissiveIntensity: 1.5, roughness: 0.4,
-  }), false, false);
-  glass.position.set(x, 4.25, z);
-  world.add(glass);
-  twinkles.push({ mat: glass.material, base: 1.5, phase: Math.random() * 6, amp: 0.25 });
-  // little snow cap on the lantern
-  const snow = mesh(new THREE.SphereGeometry(0.45, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xffffff));
-  snow.position.set(x, 4.55, z);
-  world.add(snow);
-}
-function stripeTextureV(hexA, hexB, stripes) {
-  const c = document.createElement('canvas');
-  c.width = 32; c.height = stripes * 16;
-  const ctx = c.getContext('2d');
-  for (let i = 0; i < stripes; i++) {
-    ctx.fillStyle = i % 2 ? '#' + new THREE.Color(hexB).getHexString() : '#' + new THREE.Color(hexA).getHexString();
-    ctx.fillRect(0, i * 16, 32, 16);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-const plazaLamps = [[-9, 9], [9, 9], [-9, -9], [9, -9], [0, 18], [-14, 11]];
-plazaLamps.forEach(([x, z]) => lamp(x, z));
-
-// ---------- string lights strung between the plaza lamps ----------
-function stringLights(ax, az, bx, bz, count = 9) {
-  const a = new THREE.Vector3(ax, 4.4, az);
-  const b = new THREE.Vector3(bx, 4.4, bz);
-  for (let i = 0; i <= count; i++) {
-    const t = i / count;
-    const p = a.clone().lerp(b, t);
-    p.y -= Math.sin(t * Math.PI) * 1.1; // droop
-    const col = BAUBLE_COLORS[i % BAUBLE_COLORS.length];
-    const bulb = mesh(new THREE.SphereGeometry(0.11, 8, 8), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.2, roughness: 0.35 }), false, false);
-    bulb.position.copy(p);
-    world.add(bulb);
-    twinkles.push({ mat: bulb.material, base: 1.2, phase: Math.random() * 6, amp: 0.7 });
-  }
-}
-stringLights(-9, 9, 9, 9);
-stringLights(9, 9, 9, -9);
-stringLights(9, -9, -9, -9);
-stringLights(-9, -9, -9, 9);
-
-// ---------- buildings ----------
-// striped awning texture
-function stripeTexture(hexA, hexB, stripes = 7) {
-  const c = document.createElement('canvas');
-  c.width = stripes * 32; c.height = 32;
-  const ctx = c.getContext('2d');
-  const a = '#' + new THREE.Color(hexA).getHexString();
-  const b = '#' + new THREE.Color(hexB).getHexString();
-  for (let i = 0; i < stripes; i++) {
-    ctx.fillStyle = i % 2 ? b : a;
-    ctx.fillRect(i * 32, 0, 32, 32);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-// chimney smoke emitters (animated in the loop)
+// chimney smoke emitters (the animate loop reads these arrays)
 const smokeEmitters = [];
 const smokePuffs = [];
-
-function building({ x, z, w, d, h, wall, roof, sign, awning = 0xe5384d }) {
-  const front = z + d / 2;
-  addBox(x, 0, z, w, h, d, wall, true);
-  // base trim + corner pillars
-  addBox(x, 0, z, w + 0.3, 0.5, d + 0.3, 0xffffff, false);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const pil = mesh(new THREE.BoxGeometry(0.4, h, 0.4), mat(0xffffff));
-    pil.position.set(x + sx * (w / 2), h / 2, z + sz * (d / 2));
-    world.add(pil);
-  }
-  // pitched roof + snow cap
-  const roofMesh = mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.82, h * 0.7, 4), mat(roof, 0.8));
-  roofMesh.position.set(x, h + h * 0.34, z);
-  roofMesh.rotation.y = Math.PI / 4;
-  roofMesh.castShadow = true;
-  world.add(roofMesh);
-  const snowCap = mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.6, h * 0.28, 4), mat(0xffffff));
-  snowCap.position.set(x, h + h * 0.62, z);
-  snowCap.rotation.y = Math.PI / 4;
-  world.add(snowCap);
-
-  // chimney + smoke
-  const chimX = x + w * 0.28;
-  addBox(chimX, h + h * 0.1, z - d * 0.1, 0.7, h * 0.5, 0.7, 0x9c5b4b, false);
-  const chimTop = h + h * 0.1 + h * 0.5;
-  smokeEmitters.push({ x: chimX, y: chimTop, z: z - d * 0.1, timer: Math.random() });
-
-  // door + rounded arch + knob
-  const door = mesh(new THREE.BoxGeometry(Math.min(2.2, w * 0.3), h * 0.5, 0.2), mat(0x5d4130));
-  door.position.set(x, h * 0.25, front + 0.11);
-  world.add(door);
-  const arch = mesh(new THREE.CylinderGeometry(Math.min(1.1, w * 0.15), Math.min(1.1, w * 0.15), 0.2, 16, 1, false, 0, Math.PI), mat(0x5d4130));
-  arch.rotation.x = Math.PI / 2;
-  arch.position.set(x, h * 0.5, front + 0.11);
-  world.add(arch);
-  const knob = mesh(new THREE.SphereGeometry(0.1, 10, 10), mat(0xf3d26e), false, false);
-  knob.position.set(x + 0.6, h * 0.25, front + 0.24);
-  world.add(knob);
-
-  // striped awning over the door
-  const awnW = Math.min(3.4, w * 0.46);
-  const awn = mesh(new THREE.BoxGeometry(awnW, 0.18, 1.5), new THREE.MeshStandardMaterial({ map: stripeTexture(awning, 0xffffff), roughness: 0.7 }));
-  awn.rotation.x = 0.42;
-  awn.position.set(x, h * 0.56, front + 0.7);
-  awn.castShadow = true;
-  world.add(awn);
-  // scalloped front edge
-  for (let i = 0; i < 5; i++) {
-    const scal = mesh(new THREE.CircleGeometry(awnW / 11, 8), new THREE.MeshStandardMaterial({ color: i % 2 ? 0xffffff : awning, side: THREE.DoubleSide, roughness: 0.7 }), false, false);
-    scal.position.set(x - awnW / 2 + (i + 0.5) * (awnW / 5), h * 0.56 - 0.32, front + 1.18);
-    world.add(scal);
-  }
-
-  // glowing windows with shutters + window boxes
-  const winMat = new THREE.MeshStandardMaterial({ color: 0xfff2bd, emissive: 0xffd06a, emissiveIntensity: 0.8, roughness: 0.3 });
-  for (const dx of [-w * 0.3, w * 0.3]) {
-    const frame = mesh(new THREE.BoxGeometry(w * 0.2, h * 0.27, 0.1), mat(0xffffff), false, false);
-    frame.position.set(x + dx, h * 0.6, front + 0.04);
-    world.add(frame);
-    const win = mesh(new THREE.BoxGeometry(w * 0.17, h * 0.24, 0.14), winMat, false, false);
-    win.position.set(x + dx, h * 0.6, front + 0.08);
-    world.add(win);
-    // cross muntins
-    const barV = mesh(new THREE.BoxGeometry(0.06, h * 0.24, 0.16), mat(0xffffff), false, false);
-    barV.position.set(x + dx, h * 0.6, front + 0.09); world.add(barV);
-    const barH = mesh(new THREE.BoxGeometry(w * 0.17, 0.06, 0.16), mat(0xffffff), false, false);
-    barH.position.set(x + dx, h * 0.6, front + 0.09); world.add(barH);
-    // shutters
-    for (const sx of [-1, 1]) {
-      const sh = mesh(new THREE.BoxGeometry(w * 0.05, h * 0.27, 0.08), mat(roof, 0.7), false, false);
-      sh.position.set(x + dx + sx * w * 0.13, h * 0.6, front + 0.06);
-      world.add(sh);
-    }
-    // window box with little plants
-    const box = mesh(new THREE.BoxGeometry(w * 0.22, 0.22, 0.3), mat(0x7a4d2c), false, false);
-    box.position.set(x + dx, h * 0.46, front + 0.18); world.add(box);
-    for (let k = -1; k <= 1; k++) {
-      const plant = mesh(new THREE.SphereGeometry(0.12, 8, 8), mat(0x2f8a63), false, false);
-      plant.position.set(x + dx + k * w * 0.06, h * 0.46 + 0.16, front + 0.18); world.add(plant);
-    }
-  }
-  circleShadow(x, z, Math.max(w, d) * 0.55);
-}
-
-building({ x: -30, z: -12, w: 11, d: 8, h: 6.6, wall: 0xf9a05c, roof: 0x8d3c4f, sign: 'Cocoa Café', awning: 0xc0392b });
-building({ x: -12, z: -22, w: 9, d: 8, h: 5.8, wall: 0xffd86a, roof: 0x47749a, sign: 'Hat Hut', awning: 0x2f7fe0 });
-building({ x: 17, z: -14, w: 12, d: 9, h: 7.2, wall: 0x84cdee, roof: 0x356f93, sign: 'Game Garage', awning: 0x9b5de5 });
-building({ x: 32, z: 5, w: 10, d: 8, h: 6.4, wall: 0x9ddb8a, roof: 0x4d756c, sign: 'Snow Lab', awning: 0x2fbf5e });
-building({ x: -24, z: 12, w: 12, d: 9, h: 6.8, wall: 0xe0a6da, roof: 0x5c5780, sign: 'Pet Post', awning: 0xff7ec8 });
-
-// ---------- igloo village ----------
-function igloo(x, z, tint = 0xeef7ff) {
-  const dome = mesh(new THREE.SphereGeometry(3.1, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat(tint, 0.92));
-  dome.position.set(x, 0, z);
-  dome.castShadow = true;
-  dome.receiveShadow = true;
-  world.add(dome);
-  // brick rings
-  for (let r = 0; r < 3; r++) {
-    const ring = mesh(new THREE.TorusGeometry(3.1 * Math.cos((r / 3.4) * Math.PI / 2), 0.07, 6, 30), mat(0xcfe4f0, 0.95), false, false);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(x, 0.4 + r * 0.85, z);
-    world.add(ring);
-  }
-  // entrance tunnel
-  const ent = mesh(new THREE.CylinderGeometry(1.1, 1.1, 1.8, 16, 1, false, 0, Math.PI), mat(tint, 0.92));
-  ent.rotation.z = Math.PI / 2;
-  ent.rotation.y = Math.PI / 2;
-  ent.position.set(x, 0.9, z + 3.1);
-  world.add(ent);
-  const doorway = mesh(new THREE.CircleGeometry(0.95, 18), new THREE.MeshBasicMaterial({ color: 0x16384f }));
-  doorway.position.set(x, 0.95, z + 4.02);
-  world.add(doorway);
-  solid.push({ x, z, hx: 3.4, hz: 3.4 });
-  circleShadow(x, z, 3.4);
-}
-igloo(-32, 24, 0xeef7ff);
-igloo(-24, 28, 0xe7f0ff);
-igloo(-20, 18, 0xf3eaff);
-addSign('Igloo Village', -27, 6.4, 23, 2.1, { bg: 'rgba(80,90,150,.92)' });
-
-// ---------- central landmark: friendly snow giant + clock ----------
-const plaza = new THREE.Group();
-world.add(plaza);
-// snowman body stack
-const sn1 = mesh(new THREE.SphereGeometry(2.4, 28, 20), mat(0xffffff, 0.9));
-sn1.position.set(0, 2.2, 0);
-sn1.castShadow = true; plaza.add(sn1);
-const sn2 = mesh(new THREE.SphereGeometry(1.7, 28, 20), mat(0xffffff, 0.9));
-sn2.position.set(0, 5.3, 0);
-sn2.castShadow = true; plaza.add(sn2);
-const snHead = mesh(new THREE.SphereGeometry(1.2, 28, 20), mat(0xffffff, 0.9));
-snHead.position.set(0, 7.6, 0);
-snHead.castShadow = true; plaza.add(snHead);
-// eyes + carrot nose + buttons + smile
-for (const sx of [-0.45, 0.45]) {
-  const e = mesh(new THREE.SphereGeometry(0.16, 12, 12), mat(0x2a2a2a), false, false);
-  e.position.set(sx, 7.9, 1.05); plaza.add(e);
-}
-const nose = mesh(new THREE.ConeGeometry(0.22, 1.0, 12), mat(0xff8c3b));
-nose.rotation.x = Math.PI / 2;
-nose.position.set(0, 7.55, 1.4); plaza.add(nose);
-for (let i = 0; i < 3; i++) {
-  const btn = mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(0x2a2a2a), false, false);
-  btn.position.set(0, 5.6 - i * 0.7, 1.55 - i * 0.12); plaza.add(btn);
-}
-for (let i = 0; i < 5; i++) {
-  const s = mesh(new THREE.SphereGeometry(0.1, 8, 8), mat(0x2a2a2a), false, false);
-  const a = -0.7 + (i / 4) * 1.4;
-  s.position.set(Math.sin(a) * 0.7, 7.15 + Math.cos(a) * 0.18 - 0.18, 1.08); plaza.add(s);
-}
-// little top hat
-const brim = mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.12, 20), mat(0x2c3142));
-brim.position.set(0, 8.55, 0); plaza.add(brim);
-const topHat = mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.2, 20), mat(0x2c3142));
-topHat.position.set(0, 9.2, 0); topHat.castShadow = true; plaza.add(topHat);
-const hatBand = mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.28, 20), mat(0xe5384d));
-hatBand.position.set(0, 8.78, 0); plaza.add(hatBand);
-// stick arms
-for (const side of [-1, 1]) {
-  const arm = mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.6, 6), mat(0x6b4a2c));
-  arm.position.set(side * 2.0, 5.5, 0);
-  arm.rotation.z = side * 0.9;
-  plaza.add(arm);
-}
-solid.push({ x: 0, z: 0, hx: 2.8, hz: 2.8 });
-circleShadow(0, 0, 3);
-addSign('Snowy Plaza', 0, 11.2, 0, 2.4);
-
-// ---------- docks ----------
-const dockMat = mat(0xa8794f);
-for (let z = 24; z <= 48; z += 3.1) {
-  const a = mesh(new THREE.BoxGeometry(3.2, 0.25, 2.7), dockMat); a.position.set(-7.4, 0.18, z); world.add(a);
-  const b = mesh(new THREE.BoxGeometry(3.2, 0.25, 2.7), dockMat); b.position.set(11.4, 0.18, z); world.add(b);
-}
-for (let x = -7; x <= 11; x += 3) {
-  const c = mesh(new THREE.BoxGeometry(2.8, 0.25, 3.4), dockMat); c.position.set(x, 0.18, 48.6); world.add(c);
-}
-addSign('Aurora Docks', 2, 4.4, 47.6, 2.1, { bg: 'rgba(20,90,120,.92)' });
-
-// ---------- toboggan hill ramp + flags ----------
-for (let i = 0; i < 6; i++) {
-  const x = 22 + i * 3.0;
-  const z = -22 + i * 1.6;
-  const rail = mesh(new THREE.BoxGeometry(3.0, 0.25, 6.0), mat(0xf3cf55));
-  rail.rotation.z = -0.13;
-  rail.position.set(x, 1.3 + i * 0.5, z);
-  rail.castShadow = true;
-  world.add(rail);
-}
-addSign('Toboggan Hill', 33, 9, -22, 2.2, { bg: 'rgba(120,70,40,.92)' });
-
-// ---------- festive bunting between poles ----------
-function bunting(x1, z1, x2, z2, count = 10) {
-  const a = new THREE.Vector3(x1, 5, z1);
-  const b = new THREE.Vector3(x2, 5, z2);
-  const cols = [0xff6f61, 0xffd23f, 0x35c45f, 0x2f7fe0, 0x9b5de5];
-  for (let i = 0; i <= count; i++) {
-    const t = i / count;
-    const p = a.clone().lerp(b, t);
-    p.y -= Math.sin(t * Math.PI) * 0.9; // sag
-    const flag = mesh(new THREE.ConeGeometry(0.35, 0.7, 4), new THREE.MeshStandardMaterial({ color: cols[i % cols.length], side: THREE.DoubleSide, roughness: 0.6 }), false, false);
-    flag.position.copy(p);
-    flag.rotation.x = Math.PI;
-    world.add(flag);
-  }
-}
-bunting(-7, 7, 7, 7);
-bunting(7, 7, 7, -7);
-bunting(7, -7, -7, -7);
-bunting(-7, -7, -7, 7);
-
-// =====================================================================
-//  Decorative props (gifts, mini snowmen, benches, snow piles, bushes)
-// =====================================================================
-function giftBox(x, z, col = 0xe5384d) {
-  const s = 0.7 + Math.random() * 0.5;
-  const box = mesh(new THREE.BoxGeometry(s, s, s), mat(col, 0.6));
-  box.position.set(x, s / 2, z);
-  box.rotation.y = Math.random() * Math.PI;
-  box.castShadow = true;
-  world.add(box);
-  // ribbon
-  const rib = mesh(new THREE.BoxGeometry(s * 0.16, s * 1.02, s * 1.02), mat(0xfff2bd, 0.5), false, false);
-  rib.position.copy(box.position); rib.rotation.y = box.rotation.y; world.add(rib);
-  const rib2 = mesh(new THREE.BoxGeometry(s * 1.02, s * 1.02, s * 0.16), mat(0xfff2bd, 0.5), false, false);
-  rib2.position.copy(box.position); rib2.rotation.y = box.rotation.y; world.add(rib2);
-  const bow = mesh(new THREE.SphereGeometry(s * 0.18, 10, 10), mat(0xfff2bd, 0.5), false, false);
-  bow.position.set(x, s + 0.02, z); world.add(bow);
-  circleShadow(x, z, s * 0.7);
-}
-function miniSnowman(x, z) {
-  const g = new THREE.Group();
-  const b1 = mesh(new THREE.SphereGeometry(0.6, 16, 12), mat(0xffffff, 0.9)); b1.position.y = 0.55; g.add(b1);
-  const b2 = mesh(new THREE.SphereGeometry(0.42, 16, 12), mat(0xffffff, 0.9)); b2.position.y = 1.3; g.add(b2);
-  for (const sx of [-0.15, 0.15]) {
-    const e = mesh(new THREE.SphereGeometry(0.05, 8, 8), mat(0x2a2a2a), false, false); e.position.set(sx, 1.38, 0.36); g.add(e);
-  }
-  const n = mesh(new THREE.ConeGeometry(0.07, 0.32, 8), mat(0xff8c3b), false, false);
-  n.rotation.x = Math.PI / 2; n.position.set(0, 1.28, 0.42); g.add(n);
-  const scarfCol = BAUBLE_COLORS[Math.floor(Math.random() * BAUBLE_COLORS.length)];
-  const scarf = mesh(new THREE.TorusGeometry(0.4, 0.09, 8, 16), mat(scarfCol, 0.6), false, false);
-  scarf.rotation.x = Math.PI / 2; scarf.position.y = 1.0; g.add(scarf);
-  g.position.set(x, 0, z);
-  g.children.forEach((m) => (m.castShadow = true));
-  world.add(g);
-  circleShadow(x, z, 0.7);
-  solid.push({ x, z, hx: 0.8, hz: 0.8 });
-}
-function bench(x, z, rot = 0) {
-  const g = new THREE.Group();
-  const seat = mesh(new THREE.BoxGeometry(2.4, 0.18, 0.7), mat(0x9c6b3f, 0.7)); seat.position.y = 0.7; g.add(seat);
-  const back = mesh(new THREE.BoxGeometry(2.4, 0.7, 0.16), mat(0x9c6b3f, 0.7)); back.position.set(0, 1.05, -0.32); g.add(back);
-  for (const sx of [-1, 1]) {
-    const leg = mesh(new THREE.BoxGeometry(0.18, 0.7, 0.6), mat(0x6b4a2c)); leg.position.set(sx * 1.0, 0.35, 0); g.add(leg);
-  }
-  // snow on the seat
-  const snow = mesh(new THREE.BoxGeometry(2.3, 0.12, 0.65), mat(0xffffff)); snow.position.set(0, 0.84, 0.02); g.add(snow);
-  g.position.set(x, 0, z); g.rotation.y = rot;
-  g.children.forEach((m) => { m.castShadow = true; m.receiveShadow = true; });
-  world.add(g);
-  circleShadow(x, z, 1.4);
-}
-function snowPile(x, z) {
-  const n = 3 + Math.floor(Math.random() * 3);
-  for (let i = 0; i < n; i++) {
-    const r = 0.4 + Math.random() * 0.35;
-    const ball = mesh(new THREE.SphereGeometry(r, 12, 10), mat(0xfdffff, 0.85));
-    ball.position.set(x + (Math.random() - 0.5) * 1.4, r * 0.7, z + (Math.random() - 0.5) * 1.4);
-    ball.castShadow = true;
-    world.add(ball);
-  }
-  circleShadow(x, z, 1.3);
-}
-function bush(x, z) {
-  const g = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    const r = 0.5 + Math.random() * 0.3;
-    const b = mesh(new THREE.SphereGeometry(r, 12, 10), mat(0x2f8a63, 0.9));
-    b.position.set((Math.random() - 0.5) * 1.0, r * 0.8, (Math.random() - 0.5) * 1.0);
-    b.castShadow = true; g.add(b);
-    const cap = mesh(new THREE.SphereGeometry(r * 0.96, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xffffff));
-    cap.position.copy(b.position); cap.position.y += r * 0.2; g.add(cap);
-  }
-  g.position.set(x, 0, z); world.add(g);
-  circleShadow(x, z, 1);
-}
-
-// gifts clustered at the plaza base
-[[2.6, 2.4, 0xe5384d], [-2.8, 2.2, 0x2f7fe0], [0.4, 3.2, 0x35c45f], [-1.6, -2.8, 0xffd23f], [2.4, -2.2, 0x9b5de5]]
-  .forEach(([gx, gz, col]) => giftBox(gx, gz, col));
-// mini snowmen + benches + piles + bushes around the plaza & paths
-[[12, 6], [-12, 7], [10, -10], [-11, -9], [-6, 16], [16, 14]].forEach(([x, z]) => miniSnowman(x, z));
-[[11, 2, -0.5], [-11, 2, 0.5], [3, 12, Math.PI], [-4, -12, 0]].forEach(([x, z, r]) => bench(x, z, r));
-[[18, -4], [-18, 4], [6, -16], [-16, -14], [20, 8], [14, 18]].forEach(([x, z]) => snowPile(x, z));
-[[15, -2], [-15, -3], [4, 18], [-9, 14], [19, 2], [-19, 8], [9, -15], [-6, -16]].forEach(([x, z]) => bush(x, z));
 
 // =====================================================================
 //  Penguin factory (reused for player + NPCs)
@@ -1046,6 +522,11 @@ function darken(hex, f = 0.78) {
 }
 function makePenguin({ color = 0x2f7fe0, hat = null, scale = 1 } = {}) {
   const g = new THREE.Group();
+  // yaw-first rotation order so the running lean (pitch) and waddle (roll) are
+  // applied in the penguin's own facing frame. With the default XYZ order they
+  // mix with the heading yaw and read as a sideways tilt when running across
+  // certain world directions.
+  g.rotation.order = 'YXZ';
   const skin = darken(color, 0.85);
 
   const body = mesh(new THREE.SphereGeometry(0.8, 26, 20), mat(color, 0.7));
@@ -1455,16 +936,8 @@ hpLabel.style.cssText = 'position:absolute;inset:0;display:flex;align-items:cent
 hpBar.appendChild(hpLabel);
 document.body.appendChild(hpBar);
 
-// slim stamina bar (only shown when not full, to keep the HUD clean)
-const staminaBar = document.createElement('div');
-staminaBar.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:6;width:220px;height:7px;border-radius:999px;background:rgba(11,76,112,.4);border:1px solid rgba(255,255,255,.35);overflow:hidden;display:none;opacity:0;transition:opacity .25s';
-const staminaFill = document.createElement('div');
-staminaFill.style.cssText = 'height:100%;width:100%;background:#7cd6ff;transition:width .1s,background .2s';
-staminaBar.appendChild(staminaFill);
-document.body.appendChild(staminaBar);
-
 const vignette = document.createElement('div');
-vignette.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(120% 120% at 50% 50%, transparent 45%, rgba(170,0,0,.8));transition:opacity .08s';
+vignette.style.cssText = 'position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(135% 110% at 50% 50%, transparent 34%, rgba(180,0,0,.32) 64%, rgba(140,0,0,.72) 85%, rgba(85,0,0,.96) 100%);transition:opacity .07s ease-out';
 document.body.appendChild(vignette);
 
 // round pill in the top-right status bar
@@ -1615,69 +1088,25 @@ function updateBossBar() {
 }
 
 // =====================================================================
-//  Weapon shop — buy the pistol & upgrade it by talking to the keeper
+//  Weapon shop — buy the pistol & upgrade it by talking to the keeper.
+//  The shop stall, Gunther and the pistol pickup are data-driven
+//  GameObjects (see defaultTown.js); the buy/upgrade gameplay below reads
+//  their live positions via refs resolved in syncSceneRefs() (called from
+//  rebuildSolid on load and after every editor edit). Move or delete the
+//  shop in the editor and the gameplay follows.
 // =====================================================================
-const SHOP_POS = { x: 14, z: 20 };
 const SHOP_R = 5.2;
-const shop = new THREE.Group();
-const woodDark = mat(0x7a5230, 0.9);
-const woodLight = mat(0x9c6b3f, 0.85);
-// floor pad
-const sFloor = mesh(new THREE.BoxGeometry(9, 0.3, 6.6), woodLight); sFloor.position.y = 0.15; shop.add(sFloor);
-// back + side walls
-const sBack = mesh(new THREE.BoxGeometry(9, 4.2, 0.4), woodDark); sBack.position.set(0, 2.25, 3.1); shop.add(sBack);
-for (const sx of [-1, 1]) {
-  const sWall = mesh(new THREE.BoxGeometry(0.4, 4.2, 6.6), woodDark); sWall.position.set(sx * 4.3, 2.25, 0); shop.add(sWall);
-  const post = mesh(new THREE.BoxGeometry(0.45, 4.6, 0.45), woodDark); post.position.set(sx * 4.3, 2.3, -3.0); shop.add(post);
-}
-// striped awning roof
-for (let s = 0; s < 9; s++) {
-  const slat = mesh(new THREE.BoxGeometry(1.05, 0.4, 8), mat(s % 2 ? 0xb6303a : 0xefe6d6, 0.7));
-  slat.position.set(-4 + s, 4.7, -0.2); shop.add(slat);
-}
-// counter the player talks across
-const counter = mesh(new THREE.BoxGeometry(8.4, 1.35, 1.0), woodLight); counter.position.set(0, 0.78, -2.4); shop.add(counter);
-const counterTop = mesh(new THREE.BoxGeometry(8.7, 0.18, 1.35), mat(0xc69a63, 0.6)); counterTop.position.set(0, 1.5, -2.4); shop.add(counterTop);
-// a couple of crates on the back wall
-for (const cx of [-3, 3]) {
-  const cr = mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), mat(0x8a6a44, 0.9)); cr.position.set(cx, 0.85, 2.3); shop.add(cr);
-}
-shop.position.set(SHOP_POS.x, 0, SHOP_POS.z);
-shop.traverse((m) => { if (m.isMesh) m.castShadow = true; });
-world.add(shop);
-// colliders: counter (front) + back wall, so the player chats across the counter
-solid.push({ x: SHOP_POS.x, z: SHOP_POS.z - 2.4, hx: 4.3, hz: 0.7 });
-solid.push({ x: SHOP_POS.x, z: SHOP_POS.z + 3.1, hx: 4.6, hz: 0.4 });
-
-// the shopkeeper penguin behind the counter
-const keeper = makePenguin({ color: 0x39304a, hat: 'cap', scale: 1.1 });
-keeper.group.position.set(SHOP_POS.x, 0, SHOP_POS.z + 0.8);
-keeper.group.rotation.y = Math.PI; // face the customer
-world.add(keeper.group);
-const keeperTag = makeNameTag('🔫 Gunther', 0xffcf5a);
-keeperTag.position.set(SHOP_POS.x, 3.0, SHOP_POS.z + 0.8);
-world.add(keeperTag);
-
-// pistol on display on the counter (hidden once bought)
-const shopGun = makePistol(1.2);
-shopGun.position.set(SHOP_POS.x, 1.85, SHOP_POS.z - 2.4);
-shopGun.rotation.set(0, 0.5, 0.2);
-world.add(shopGun);
-const shopGunGlow = mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 24), new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0xffc21a, emissiveIntensity: 1.3 }), false, false);
-shopGunGlow.rotation.x = Math.PI / 2; shopGunGlow.position.set(SHOP_POS.x, 1.6, SHOP_POS.z - 2.4); world.add(shopGunGlow);
-
-// hanging shop sign (smaller now)
-const shopSign = makeLabelSprite('WEAPON SHOP', { bg: 'rgba(150,20,20,.92)' });
-shopSign.scale.set(1.5 * shopSign.userData.aspect, 1.5, 1);
-shopSign.position.set(SHOP_POS.x, 5.7, SHOP_POS.z - 0.2);
-world.add(shopSign);
+let shopRec = null;        // placed 'shop' GameObject (counter the player chats across)
+let gunPickupRec = null;   // placed 'gunpickup' GameObject (hidden once bought)
 
 const upgradePrompt = document.createElement('div');
 upgradePrompt.style.cssText = 'position:fixed;bottom:104px;left:50%;transform:translateX(-50%);z-index:6;padding:9px 16px;border-radius:12px;background:rgba(20,90,140,.85);border:2px solid rgba(255,255,255,.4);color:#fff;font:800 14px "Baloo 2",system-ui;display:none;text-shadow:0 1px 3px rgba(0,0,0,.4);white-space:nowrap';
 document.body.appendChild(upgradePrompt);
 
 function nearShop() {
-  return Math.hypot(player.group.position.x - SHOP_POS.x, player.group.position.z - SHOP_POS.z) < SHOP_R;
+  if (!shopRec) return false;
+  const p = shopRec.obj.position;
+  return Math.hypot(player.group.position.x - p.x, player.group.position.z - p.z) < SHOP_R;
 }
 
 function buyPistol() {
@@ -1857,10 +1286,6 @@ function spawnBoss() {
 
 let groanTimer = 3;
 function updateHorde(dt) {
-  if (damageFlash > 0) {
-    damageFlash = Math.max(0, damageFlash - dt * 1.6);
-    vignette.style.opacity = String(damageFlash);
-  }
   if (!hordeMode) return;
   // a dead solo player stops the sim; a dead host keeps it alive for clients
   if (gameOver && !(mpActive() && mpIsHost())) return;
@@ -1898,11 +1323,27 @@ function damagePlayer(amount) {
   if (gameOver || spectating) return;
   playerHP = Math.max(0, playerHP - amount);
   sfx.hurt();
-  damageFlash = 0.85;
-  vignette.style.opacity = '0.85';
+  // bigger hits punch the screen harder, capped so a chip of damage still reads
+  damageFlash = clamp(0.55 + amount * 0.03, 0.6, 1);
+  vignette.style.opacity = String(damageFlash);
   updatePlayerHP();
   // in co-op a death only downs you — you respawn next round if a teammate lives
   if (playerHP <= 0) { if (mpActive() && anyTeammateAlive()) downPlayer(); else endGame(); }
+}
+
+// AAA-style hit feedback driven once per frame: the red "iris" punches in from
+// the screen edges when hit (damageFlash decays), and once you're near death the
+// edges stay lit and throb like a heartbeat so low HP is felt, not just read.
+function updateDamageVignette(dt, t) {
+  if (damageFlash > 0) damageFlash = Math.max(0, damageFlash - dt * 1.7);
+  const hpFrac = playerHP / PLAYER_MAX_HP;
+  // starts creeping in below ~55% HP and intensifies hard toward death; the
+  // heartbeat also beats faster and harder the lower you get
+  const lowf = clamp((0.55 - hpFrac) / 0.55, 0, 1);
+  const pulse = 0.5 + 0.5 * Math.sin(t * (5 + lowf * 5));
+  const beat = lowf * (0.35 + 0.55 * lowf) * (0.5 + 0.5 * pulse);
+  const op = (gameOver || spectating) ? 0 : Math.max(damageFlash, beat);
+  vignette.style.opacity = op.toFixed(3);
 }
 
 function endGame() {
@@ -1920,7 +1361,7 @@ function endGame() {
   deathOverlay.style.display = 'flex';
 }
 
-function damageNPC(npc, dmg, point, headshot = false, attackerId = mpMyId()) {
+function damageNPC(npc, dmg, point, headshot = false, attackerId = mpMyId(), dir = null) {
   if (npc.dead) return;
   if (!hordeMode) startHorde();
   const mine = attackerId === mpMyId();
@@ -1932,7 +1373,7 @@ function damageNPC(npc, dmg, point, headshot = false, attackerId = mpMyId()) {
   } else {
     updateBossBar();
   }
-  spawnBloodBurst(point);
+  spawnBloodBurst(point, dir);
   if (npc.hp <= 0) { if (mine) showHitMarker(true); killNPC(npc, point, headshot, attackerId); }
   else if (mine) { showHitMarker(false); sfx.hit(); if (headshot) floatText('HEADSHOT', point, '#ffd23f', 18); earnCash(headshot ? 3 : 1); }
 }
@@ -1977,12 +1418,22 @@ function killNPC(npc, point, headshot = false, attackerId = mpMyId()) {
       const r = 2.4 + Math.random() * 1.8;
       spawnAmmoDrop(bx + Math.cos(a) * r, bz + Math.sin(a) * r, 12 + Math.floor(Math.random() * 8), true);
     }
+    const candies = 3;
+    for (let k = 0; k < candies; k++) {
+      const a = (k / candies) * Math.PI * 2 + 1.0 + Math.random() * 0.6;
+      const r = 2.0 + Math.random() * 1.6;
+      spawnCandyDrop(bx + Math.cos(a) * r, bz + Math.sin(a) * r);
+    }
   } else if (hordeMode) {
     // random ammo drop — scarce; bigger threats are a bit more generous
     const dropChance = npc.type === 'brute' ? 0.45 : 0.24;
     if (Math.random() < dropChance) {
       const amt = npc.type === 'brute' ? 16 : 6 + Math.floor(Math.random() * 6);
       spawnAmmoDrop(npc.group.position.x, npc.group.position.z, amt);
+    }
+    // rare candy bar — a quick burst of speed for whoever grabs it
+    if (npc.type !== 'bomber' && Math.random() < 0.08) {
+      spawnCandyDrop(npc.group.position.x, npc.group.position.z);
     }
   }
   setOnline();
@@ -2037,9 +1488,10 @@ function spawnMedpackAt(x, z) {
   let tries = 0;
   while (collides({ x, z }) && tries < 10) { x += (Math.random() - 0.5) * 2.4; z += (Math.random() - 0.5) * 2.4; tries++; }
   const g = makeMedpack();
-  g.position.set(x, 0, z);
+  const gy = groundHeightAt(x, z, 0);
+  g.position.set(x, gy, z);
   world.add(g);
-  medpacks.push({ id: nextNetId++, group: g, x, z, bob: Math.random() * 6 });
+  medpacks.push({ id: nextNetId++, group: g, x, z, gy, bob: Math.random() * 6 });
 }
 
 function updateMedpacks(dt, t) {
@@ -2050,7 +1502,7 @@ function updateMedpacks(dt, t) {
   for (let i = medpacks.length - 1; i >= 0; i--) {
     const m = medpacks[i];
     m.group.rotation.y += dt * 1.5;
-    m.group.position.y = Math.sin(t * 2 + m.bob) * 0.18 + 0.1;
+    m.group.position.y = (m.gy || 0) + Math.sin(t * 2 + m.bob) * 0.18 + 0.1;
     if (started && !gameOver && Math.hypot(player.group.position.x - m.x, player.group.position.z - m.z) < 1.9) {
       if (playerHP < PLAYER_MAX_HP) {
         playerHP = Math.min(PLAYER_MAX_HP, playerHP + MED_HEAL);
@@ -2104,9 +1556,10 @@ function spawnAmmoDrop(x, z, amount, force = false) {
   const r = Math.hypot(x, z);
   if (r > 100) { const k = 100 / r; x *= k; z *= k; }
   const g = makeAmmoBox();
-  g.position.set(x, 0, z);
+  const gy = groundHeightAt(x, z, 0);
+  g.position.set(x, gy, z);
   world.add(g);
-  ammoDrops.push({ id: nextNetId++, group: g, x, z, amount, bob: Math.random() * 6, age: 0 });
+  ammoDrops.push({ id: nextNetId++, group: g, x, z, gy, amount, bob: Math.random() * 6, age: 0 });
 }
 const AMMO_TTL = 120;  // seconds before an uncollected ammo box despawns
 function updateAmmoDrops(dt, t) {
@@ -2120,7 +1573,7 @@ function updateAmmoDrops(dt, t) {
       continue;
     }
     a.group.rotation.y += dt * 1.8;
-    a.group.position.y = Math.sin(t * 2.4 + a.bob) * 0.14 + 0.06;
+    a.group.position.y = (a.gy || 0) + Math.sin(t * 2.4 + a.bob) * 0.14 + 0.06;
     // blink in the final few seconds so it's clear it's about to vanish
     a.group.visible = a.age < AMMO_TTL - 6 || Math.sin(a.age * 14) > 0;
     if (started && !gameOver && hasGun && Math.hypot(player.group.position.x - a.x, player.group.position.z - a.z) < 1.9) {
@@ -2133,6 +1586,60 @@ function updateAmmoDrops(dt, t) {
         ammoDrops.splice(i, 1);
       }
     }
+  }
+}
+
+// =====================================================================
+//  Candy bars — a rare zombie drop that grants a short speed boost
+// =====================================================================
+const candyDrops = [];
+const CANDY_TTL = 60;   // seconds before an uncollected candy bar despawns
+function makeCandyBar() {
+  const g = new THREE.Group();
+  const bar = mesh(new THREE.BoxGeometry(0.8, 0.28, 0.42), new THREE.MeshStandardMaterial({ color: 0xff3d8b, roughness: 0.45, emissive: 0xff1f6e, emissiveIntensity: 0.3 }));
+  bar.position.y = 0.36; bar.castShadow = true; g.add(bar);
+  for (const dx of [-0.22, 0.06]) {                 // bright wrapper stripes
+    const st = mesh(new THREE.BoxGeometry(0.12, 0.31, 0.44), mat(0x32e0ff, 0.4), false, false);
+    st.position.set(dx, 0.36, 0); g.add(st);
+  }
+  for (const ex of [-0.5, 0.5]) {                   // crimped wrapper ends
+    const end = mesh(new THREE.BoxGeometry(0.18, 0.34, 0.5), mat(0xffe14a, 0.5), false, false);
+    end.position.set(ex, 0.36, 0); g.add(end);
+  }
+  const glow = mesh(new THREE.TorusGeometry(0.55, 0.045, 8, 22), new THREE.MeshStandardMaterial({ color: 0x32e0ff, emissive: 0x18c0ff, emissiveIntensity: 1.3 }), false, false);
+  glow.rotation.x = Math.PI / 2; glow.position.y = 0.1; g.add(glow);
+  const beam = mesh(new THREE.CylinderGeometry(0.05, 0.05, 4.5, 8), new THREE.MeshBasicMaterial({ color: 0x32e0ff, transparent: true, opacity: 0.22, depthWrite: false }), false, false);
+  beam.position.y = 2.4; g.add(beam);
+  return g;
+}
+function spawnCandyDrop(x, z) {
+  const r = Math.hypot(x, z);
+  if (r > 100) { const k = 100 / r; x *= k; z *= k; }   // keep it inside the wall
+  const g = makeCandyBar();
+  const gy = groundHeightAt(x, z, 0);
+  g.position.set(x, gy, z);
+  world.add(g);
+  candyDrops.push({ id: nextNetId++, group: g, x, z, gy, bob: Math.random() * 6, age: 0 });
+}
+function updateCandyDrops(dt, t) {
+  for (let i = candyDrops.length - 1; i >= 0; i--) {
+    const c = candyDrops[i];
+    c.age += dt;
+    if (c.age > CANDY_TTL || Math.hypot(c.x, c.z) > 104) { world.remove(c.group); candyDrops.splice(i, 1); continue; }
+    c.group.rotation.y += dt * 2.2;
+    c.group.position.y = (c.gy || 0) + Math.sin(t * 2.6 + c.bob) * 0.16 + 0.08;
+    c.group.visible = c.age < CANDY_TTL - 6 || Math.sin(c.age * 14) > 0;
+    if (started && !gameOver && Math.hypot(player.group.position.x - c.x, player.group.position.z - c.z) < 1.9) {
+      grantSpeedBoost();
+      floatText('SUGAR RUSH!', new THREE.Vector3(c.x, 1.3, c.z), '#ff5fb0', 20);
+      world.remove(c.group);
+      candyDrops.splice(i, 1);
+    }
+  }
+}
+function removeCandyById(id) {
+  for (let i = candyDrops.length - 1; i >= 0; i--) {
+    if (candyDrops[i].id === id) { world.remove(candyDrops[i].group); candyDrops.splice(i, 1); return; }
   }
 }
 
@@ -2255,8 +1762,17 @@ ammoPill.style.display = 'none';
 const elimPill = document.createElement('div');
 elimPill.className = 'status-pill';
 elimPill.style.display = 'none';
+const boostPill = document.createElement('div');
+boostPill.className = 'status-pill';
+boostPill.style.display = 'none';
+boostPill.style.background = 'rgba(255,61,139,.55)';
 statusBar.appendChild(elimPill);
 statusBar.appendChild(ammoPill);
+statusBar.appendChild(boostPill);
+function updateBoostHUD() {
+  if (speedBoostT > 0) { boostPill.style.display = ''; boostPill.innerHTML = `🍬 <span>${speedBoostT.toFixed(1)}s</span>`; }
+  else boostPill.style.display = 'none';
+}
 function updateWeaponHUD() {
   const mag = reloading ? '· · ·' : ammo;
   const low = ammoReserve === 0 && ammo === 0;
@@ -2431,8 +1947,7 @@ function pickupGunNow() {
   playerGun.visible = true;
   applyGunSkin(playerGun, gunLevel);
   applyGunSkin(fpGun, gunLevel);
-  shopGun.visible = false;
-  shopGunGlow.visible = false;
+  if (gunPickupRec) gunPickupRec.obj.visible = false;
   ammo = MAG_SIZE;
   ammoPill.style.display = '';
   elimPill.style.display = '';
@@ -2491,28 +2006,32 @@ function fire() {
   // hitscan against whichever entities this machine owns: the host/solo client
   // tests real NPCs; a network client tests the host's ghost zombies.
   const isClient = netRole() === 'client';
+  // a wall on the aim ray blocks the shot — penguins behind cover can't be hit
+  const wallDist = raySolidDist(_ray, 120);
   let best = null, bestAlong = Infinity, bestCenter = null, bestScale = 1, bestType = '', bestNid = 0;
   if (isClient) {
     for (const [nid, g] of ghosts) {
       if (g.dead) continue;
       const p = g.pen.group.position;
-      const center = _tmp.set(p.x, p.y + 1.2, p.z);
+      const s = g.scale || 1;
+      const center = _tmp.set(p.x, p.y + 1.2 * s, p.z);
       const along = _ray.direction.dot(center.clone().sub(_ray.origin));
-      if (along < 0.5 || along > 120) continue;
+      if (along < 0.5 || along > 120 || along > wallDist) continue;
       const onRay = _ray.at(along, new THREE.Vector3());
-      if (onRay.distanceTo(center) < 1.45 && along < bestAlong) {
-        best = g; bestAlong = along; bestCenter = center.clone(); bestScale = g.scale; bestType = g.type; bestNid = nid;
+      if (onRay.distanceTo(center) < 1.45 * s && along < bestAlong) {
+        best = g; bestAlong = along; bestCenter = center.clone(); bestScale = s; bestType = g.type; bestNid = nid;
       }
     }
   } else {
     for (const npc of npcs) {
       if (npc.dead) continue;
-      const center = _tmp.set(npc.group.position.x, npc.group.position.y + 1.2, npc.group.position.z);
+      const s = npc.scale || 1;
+      const center = _tmp.set(npc.group.position.x, npc.group.position.y + 1.2 * s, npc.group.position.z);
       const along = _ray.direction.dot(center.clone().sub(_ray.origin));
-      if (along < 0.5 || along > 120) continue;
+      if (along < 0.5 || along > 120 || along > wallDist) continue;
       const onRay = _ray.at(along, new THREE.Vector3());
-      if (onRay.distanceTo(center) < 1.45 && along < bestAlong) {
-        best = npc; bestAlong = along; bestCenter = center.clone(); bestScale = npc.scale; bestType = npc.type; bestNid = npc.netId;
+      if (onRay.distanceTo(center) < 1.45 * s && along < bestAlong) {
+        best = npc; bestAlong = along; bestCenter = center.clone(); bestScale = s; bestType = npc.type; bestNid = npc.netId;
       }
     }
   }
@@ -2532,15 +2051,15 @@ function fire() {
     if (isClient) {
       // report to the host; show local feedback immediately
       hitOut.push({ nid: bestNid, dmg, hs: headshot });
-      spawnBloodBurst(bestCenter.clone());
+      spawnBloodBurst(bestCenter.clone(), _ray.direction.clone());
       showHitMarker(false);
       sfx.hit();
       if (headshot) floatText('HEADSHOT', bestCenter.clone(), '#ffd23f', 18);
     } else {
-      damageNPC(best, dmg, bestCenter.clone(), headshot);
+      damageNPC(best, dmg, bestCenter.clone(), headshot, mpMyId(), _ray.direction.clone());
     }
   } else {
-    endPoint = _ray.at(80, new THREE.Vector3());
+    endPoint = _ray.at(Math.min(wallDist, 80), new THREE.Vector3());
   }
   spawnTracer(muzzleWorld, endPoint);
 }
@@ -2569,7 +2088,7 @@ function spawnTracer(a, b) {
   tracers.push({ line, life: 0 });
 }
 
-function spawnBloodBurst(point) {
+function spawnBloodBurst(point, dir = null) {
   for (let i = 0; i < 22; i++) {
     const r = 0.05 + Math.random() * 0.1;
     const b = mesh(new THREE.SphereGeometry(r, 6, 6), new THREE.MeshStandardMaterial({ color: 0x9e0606, roughness: 0.6 }), false, false);
@@ -2578,6 +2097,8 @@ function spawnBloodBurst(point) {
     world.add(b);
     bloodBits.push({ mesh: b, vel: v, life: 0 });
   }
+  // throw splatter onto nearby walls/props in the direction the shot travelled
+  splatBloodOnWorld(point, dir);
 }
 
 function spawnBloodPool(x, z) {
@@ -2585,7 +2106,7 @@ function spawnBloodPool(x, z) {
   const pool = mesh(new THREE.CircleGeometry(size, 20), new THREE.MeshBasicMaterial({ map: bloodTex, transparent: true, opacity: 0, depthWrite: false }), false, false);
   pool.rotation.x = -Math.PI / 2;
   pool.rotation.z = Math.random() * Math.PI * 2;
-  pool.position.set(x, 0.05, z);
+  pool.position.set(x, groundHeightAt(x, z, 0) + 0.05, z);
   world.add(pool);
   bloodPools.push({ mesh: pool, grow: 0 });
   // cap the number of pools to keep things performant
@@ -2593,6 +2114,78 @@ function spawnBloodPool(x, z) {
     const old = bloodPools.shift();
     world.remove(old.mesh);
   }
+}
+
+// --- world-reactive blood decals: wall splatter + walking blood trails -------
+// Generic surface-aligned splat that fades away over its lifetime, so blood
+// lands on whatever it hits (walls, props, terrain) and clutter self-cleans.
+const bloodDecals = [];
+const UP_V = new THREE.Vector3(0, 1, 0);
+const _decalFrom = new THREE.Vector3(0, 0, 1);
+const _decalN = new THREE.Vector3();
+function addBloodDecal(pos, normal, size, ttl, maxOp = 0.85) {
+  const m = mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({
+      map: bloodTex, transparent: true, opacity: 0, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
+    }),
+    false, false,
+  );
+  m.position.copy(pos).addScaledVector(normal, 0.03);    // float just off the surface
+  m.quaternion.setFromUnitVectors(_decalFrom, _decalN.copy(normal).normalize());
+  m.rotateOnAxis(_decalFrom, Math.random() * Math.PI * 2);   // random roll around the normal
+  world.add(m);
+  bloodDecals.push({ mesh: m, life: 0, ttl, fadeIn: 0.12, maxOp });
+  if (bloodDecals.length > 90) {
+    const o = bloodDecals.shift();
+    world.remove(o.mesh); o.mesh.geometry.dispose();
+  }
+  return m;
+}
+
+// spray rays out from an impact point; wherever they strike a solid object, stamp
+// an oriented splat on that surface. Biased along `dir` (the shot direction) when
+// provided so blood throws the way the bullet was travelling.
+const _splatRay = new THREE.Raycaster();
+const _splatDir = new THREE.Vector3();
+function splatBloodOnWorld(point, dir) {
+  if (!solidRoots.length) return;
+  for (let i = 0; i < 4; i++) {
+    let dx, dz;
+    if (dir) {
+      const a = Math.atan2(dir.x, dir.z) + (Math.random() - 0.5) * 1.5;
+      dx = Math.sin(a); dz = Math.cos(a);
+    } else {
+      const a = Math.random() * Math.PI * 2; dx = Math.sin(a); dz = Math.cos(a);
+    }
+    _splatDir.set(dx, (Math.random() - 0.65) * 0.5, dz).normalize();
+    _splatRay.set(point, _splatDir);
+    _splatRay.far = 3.6;
+    const hits = _splatRay.intersectObjects(solidRoots, true);
+    if (!hits.length) continue;
+    const h = hits[0];
+    const n = h.face ? _decalN.copy(h.face.normal).transformDirection(h.object.matrixWorld).clone() : UP_V.clone();
+    addBloodDecal(h.point, n, 0.7 + Math.random() * 1.1, 13 + Math.random() * 9, 0.78);
+  }
+}
+
+// drip a blood trail from a wounded penguin as it walks (host npcs + client
+// ghosts both call this; bleeding is derived from replicated HP so it matches)
+const _dripPos = new THREE.Vector3();
+function bleedTrail(ent, grp, hp, maxHp, dt, active) {
+  const frac = hp / Math.max(1, maxHp);
+  if (!active || frac >= 0.55) { ent._lx = grp.position.x; ent._lz = grp.position.z; return; }
+  const lx = ent._lx ?? grp.position.x, lz = ent._lz ?? grp.position.z;
+  ent._dripDist = (ent._dripDist || 0) + Math.hypot(grp.position.x - lx, grp.position.z - lz);
+  ent._lx = grp.position.x; ent._lz = grp.position.z;
+  if (ent._dripDist < 1.1) return;
+  ent._dripDist = 0;
+  const sev = clamp((0.55 - frac) / 0.55, 0, 1);          // worse wound -> bigger, darker drip
+  const gx = grp.position.x + (Math.random() - 0.5) * 0.3;
+  const gz = grp.position.z + (Math.random() - 0.5) * 0.3;
+  _dripPos.set(gx, groundHeightAt(gx, gz, 0) + 0.04, gz);
+  addBloodDecal(_dripPos, UP_V, 0.3 + sev * 0.45, 11 + Math.random() * 8, 0.45 + sev * 0.4);
 }
 
 // --- bomber explosions ---
@@ -2653,7 +2246,7 @@ const CRATER_R = 2.4;       // freeze radius
 const CRATER_ARM = 0.45;    // brief telegraph before it can freeze you
 const CRATER_LIFE = 7;      // total lifetime on the ground
 const FREEZE_TIME = 5;      // seconds locked in place
-const FREEZE_DPS = 5;       // damage per second while frozen
+const FREEZE_DPS = 3;       // damage per second while frozen
 let frozenTimer = 0;
 let freezeHurtTick = 0;
 let nextCraterId = 1;
@@ -2714,7 +2307,7 @@ function updateIceBalls(dt) {
     b.vel.y -= ICE_GRAV * dt;
     b.m.position.addScaledVector(b.vel, dt);
     b.m.rotation.x += b.spin * dt; b.m.rotation.y += b.spin * 0.7 * dt;
-    if (b.m.position.y <= 0.12 || b.life > 4) {
+    if (b.m.position.y <= groundHeightAt(b.m.position.x, b.m.position.z, 0) + 0.12 || b.life > 4) {
       spawnIceCrater(b.tx, b.tz);
       world.remove(b.m); iceBalls.splice(i, 1);
     }
@@ -2742,7 +2335,7 @@ function setCraterOpacity(group, o) {
 }
 function spawnIceCrater(x, z) {
   const group = makeCraterMesh();
-  group.position.set(x, 0, z);
+  group.position.set(x, groundHeightAt(x, z, 0), z);   // sit on the terrain, not buried at y=0
   world.add(group);
   iceCraters.push({ id: nextCraterId++, x, z, group, life: 0 });
   sfx.iceCrack();
@@ -2786,7 +2379,7 @@ function clientCraters() {
     let gc = ghostCraters.get(id);
     if (!gc) {
       const group = makeCraterMesh();
-      group.position.set(x, 0, z);
+      group.position.set(x, groundHeightAt(x, z, 0), z);
       world.add(group);
       gc = { group };
       ghostCraters.set(id, gc);
@@ -2799,12 +2392,7 @@ function clientCraters() {
 }
 
 function updateWeapons(dt) {
-  // pickup proximity
-  if (!hasGun && shopGun.visible) {
-    shopGun.rotation.y += dt * 1.3;
-    shopGun.position.y = 1.85 + Math.sin(clock.elapsedTime * 2) * 0.08;
-    shopGunGlow.rotation.z += dt * 2;
-  }
+  // the pistol pickup spins/bobs via its Spin + Bob components now
   // hold-to-fire: keep firing at a steady cadence while the button is held
   fireCooldown = Math.max(0, fireCooldown - dt);
   if (reloading) reloadT += dt;
@@ -2847,14 +2435,19 @@ function updateWeapons(dt) {
     tr.line.material.opacity = Math.max(0, 0.9 - tr.life / 0.08);
     if (tr.life > 0.08) { world.remove(tr.line); tr.line.geometry.dispose(); tracers.splice(i, 1); }
   }
-  // blood droplets with gravity, stick on the ground
+  // blood droplets with gravity; when they land they leave a small ground mark
   for (let i = bloodBits.length - 1; i >= 0; i--) {
     const b = bloodBits[i];
     b.life += dt;
     b.vel.y -= 20 * dt;
     b.mesh.position.addScaledVector(b.vel, dt);
-    if (b.mesh.position.y < 0.05) {
-      b.mesh.position.y = 0.05;
+    const gy = groundHeightAt(b.mesh.position.x, b.mesh.position.z, 0) + 0.05;
+    if (b.mesh.position.y < gy) {
+      if (!b.landed) {                 // stamp a small splat where the drop hit
+        b.landed = true;
+        if (Math.random() < 0.5) addBloodDecal(b.mesh.position.clone().setY(gy), UP_V, 0.25 + Math.random() * 0.35, 10 + Math.random() * 8, 0.6);
+      }
+      b.mesh.position.y = gy;
       b.vel.set(0, 0, 0);
     }
     if (b.life > 2.5) { world.remove(b.mesh); bloodBits.splice(i, 1); }
@@ -2862,6 +2455,16 @@ function updateWeapons(dt) {
   // blood pools fade in
   for (const bp of bloodPools) {
     if (bp.grow < 1) { bp.grow = Math.min(1, bp.grow + dt * 3); bp.mesh.material.opacity = bp.grow * 0.92; }
+  }
+  // surface-aligned blood decals fade in, hold, then fade out + retire
+  for (let i = bloodDecals.length - 1; i >= 0; i--) {
+    const d = bloodDecals[i];
+    d.life += dt;
+    let op;
+    if (d.life < d.fadeIn) op = (d.life / d.fadeIn) * d.maxOp;
+    else op = d.maxOp * Math.max(0, 1 - (d.life - d.fadeIn) / (d.ttl - d.fadeIn));
+    d.mesh.material.opacity = op;
+    if (d.life >= d.ttl) { world.remove(d.mesh); d.mesh.geometry.dispose(); bloodDecals.splice(i, 1); }
   }
 }
 
@@ -2916,21 +2519,29 @@ function moveReticle(px, py) {
   ui.crosshair.style.top = py + 'px';
 }
 
-// sprint is a toggle (tap Shift to run, tap again to walk)
-let sprintOn = false;
-// stamina — intentionally very forgiving: long sprints, quick recovery
-const STAMINA_MAX = 100;
-const STAMINA_DRAIN = 15;       // ~6.5s of continuous sprint from full
-const STAMINA_REGEN = 20;       // refills in ~5s when you ease off
-const STAMINA_RECOVER = 35;     // can sprint again once back above this after gassing out
-let stamina = STAMINA_MAX;
-let exhausted = false;
+// movement speed: running is the default — hold Shift to walk instead
+const RUN_SPEED = 9;
+const WALK_SPEED = 5;
+// candy-bar sugar rush: a short, snappy speed boost when collected
+const SPEED_BOOST_MULT = 1.55;
+const SPEED_BOOST_DUR = 8;
+let speedBoostT = 0;
+function grantSpeedBoost() {
+  speedBoostT = SPEED_BOOST_DUR;
+  sfx.chomp();
+  updateBoostHUD();
+}
 
 // jump / vertical physics
 let velY = 0;
 let onGround = true;
 const GRAVITY = 32;
 const JUMP_SPEED = 11.5;
+const STEP_UP = 0.7;     // max ledge height you can step / climb onto (curbs, slopes)
+const STEP_DOWN = 0.7;   // max drop you stay glued to the surface for (walking downhill)
+const STEP_SMOOTH = 16;  // how fast the body eases onto a new ground height (bigger = snappier)
+const MAX_SLOPE_DEG = 50;                                  // steepest surface you can ascend
+const COS_MAX_SLOPE = Math.cos(MAX_SLOPE_DEG * Math.PI / 180);
 let stepTimer = 0;
 let stepFlip = false;
 let wasAir = false;
@@ -2966,7 +2577,7 @@ function updateCamera() {
   const desiredPos = target.clone().add(offset);
   // simple collision: pull the camera in if it would clip a building/landmark
   for (const s of solid) {
-    if (Math.abs(desiredPos.x - s.x) < s.hx && Math.abs(desiredPos.z - s.z) < s.hz && desiredPos.y < 6) {
+    if (solidContains(s, desiredPos.x, desiredPos.z) && desiredPos.y < 6) {
       desiredPos.copy(target).add(offset.multiplyScalar(0.55));
       break;
     }
@@ -2976,14 +2587,458 @@ function updateCamera() {
   camera.position.lerp(desiredPos, 1 - Math.exp(-18 * lastDt));
   camera.lookAt(target);
 }
+// A collider only counts as a wall for an entity standing at feet height `fy`
+// if its top rises more than a step above the feet (otherwise you step onto it)
+// and its base is below head height (otherwise it's an overhang you walk under).
+const ENTITY_HEIGHT = 1.8;
+function blocksAt(s, fy) {
+  if (s.top != null && s.top - fy <= STEP_UP) return false;       // low ledge → step over
+  if (s.base != null && s.base - fy >= ENTITY_HEIGHT) return false; // overhead → walk under
+  return true;
+}
+// point-in-collider test, supporting both box (hx/hz) and round (r) colliders.
+// Round colliders are used for circular objects (snowman, snow giant) so they
+// don't block in the empty corners a square box would.
+function solidContains(s, x, z) {
+  if (s.r != null) { const dx = x - s.x, dz = z - s.z; return dx * dx + dz * dz < s.r * s.r; }
+  return Math.abs(x - s.x) < s.hx && Math.abs(z - s.z) < s.hz;
+}
+
 function collides(pos, ignoreBoundary = false) {
   // zombies ignore the outer wall so they can pour in from beyond the map edge
   if (!ignoreBoundary && Math.hypot(pos.x, pos.z) > 105) return true;
+  const fy = pos.y || 0;
   for (const s of solid) {
-    if (Math.abs(pos.x - s.x) < s.hx && Math.abs(pos.z - s.z) < s.hz) return true;
+    if (solidContains(s, pos.x, pos.z) && blocksAt(s, fy)) return true;
   }
   return false;
 }
+
+// True if a point is already overlapping a solid (used so NPCs can wiggle free
+// instead of freezing permanently when they end up inside a collider).
+function insideSolid(pos) {
+  const fy = pos.y || 0;
+  for (const s of solid) {
+    if (solidContains(s, pos.x, pos.z) && blocksAt(s, fy)) return true;
+  }
+  return false;
+}
+
+// Player movement collision (one axis at a time). Blocks entering a solid from
+// outside, but if you're already overlapping one (e.g. a collider was just
+// enabled on top of you, or you spawned in it) it lets you move OUTWARD so you
+// can always slide free — no permanent stuck-in-place.
+function moveBlocked(from, to) {
+  if (Math.hypot(to.x, to.z) > 105) return true; // outer map wall
+  const fy = from.y || 0;
+  for (const s of solid) {
+    if (!blocksAt(s, fy)) continue;               // walkable ledge / overhead → not a wall
+    if (!solidContains(s, to.x, to.z)) continue;
+    if (!solidContains(s, from.x, from.z)) return true;   // crossing in from outside → wall
+    // already inside: only block motion that pushes us deeper (toward the centre)
+    if (s.r != null) {
+      const dTo = (to.x - s.x) ** 2 + (to.z - s.z) ** 2;
+      const dFrom = (from.x - s.x) ** 2 + (from.z - s.z) ** 2;
+      if (dTo < dFrom - 1e-6) return true;
+    } else {
+      if (Math.abs(to.x - s.x) < Math.abs(from.x - s.x) - 1e-6) return true;
+      if (Math.abs(to.z - s.z) < Math.abs(from.z - s.z) - 1e-6) return true;
+    }
+  }
+  return false;
+}
+
+// ---- walkable surfaces: raycast straight down to find the ground height under
+// a point so the player walks ON TOP of terrain (hill, dock, plaza, paths…)
+// following the actual mesh, instead of floating on a flat y=0 plane.
+const walkRoots = [];
+const _downRay = new THREE.Raycaster();
+const _downOrigin = new THREE.Vector3();
+const _downDir = new THREE.Vector3(0, -1, 0);
+const _nrmMat = new THREE.Matrix3();
+const _nrm = new THREE.Vector3();
+const _probe = { y: 0, normY: 1, hit: false };
+// Cast straight down onto the walkable meshes and report the surface height plus
+// how flat it is (normY = vertical component of the surface normal, 1 = flat,
+// lower = steeper). Used for ground-following AND the max-slope limit.
+function probeGround(x, z) {
+  _probe.y = 0; _probe.normY = 1; _probe.hit = false;
+  if (!walkRoots.length) return _probe;
+  _downOrigin.set(x, 80, z);
+  _downRay.set(_downOrigin, _downDir);
+  _downRay.far = 200;
+  const hits = _downRay.intersectObjects(walkRoots, true);
+  if (!hits.length) return _probe;
+  const h = hits[0];                                // nearest from above = highest surface
+  _probe.y = h.point.y; _probe.hit = true;
+  if (h.face) {
+    _nrmMat.getNormalMatrix(h.object.matrixWorld);
+    _nrm.copy(h.face.normal).applyMatrix3(_nrmMat).normalize();
+    _probe.normY = Math.abs(_nrm.y);
+  }
+  return _probe;
+}
+function groundHeightAt(x, z, fallback = 0) {
+  const g = probeGround(x, z);
+  return g.hit ? g.y : fallback;
+}
+
+// ---- line-of-sight: the meshes of solid collision objects (walls, buildings,
+// the shop, snowmen, etc.) used to block both gunfire and on-screen health bars
+// so you can't shoot or see enemies through cover.
+const solidRoots = [];
+const _losRay = new THREE.Raycaster();
+const _losDir = new THREE.Vector3();
+const _hbTmp = new THREE.Vector3();
+// nearest solid hit distance along a ray (Infinity if the shot is clear)
+function raySolidDist(ray, maxDist) {
+  if (!solidRoots.length) return Infinity;
+  _losRay.set(ray.origin, ray.direction);
+  _losRay.far = maxDist;
+  const hits = _losRay.intersectObjects(solidRoots, true);
+  return hits.length ? hits[0].distance : Infinity;
+}
+// true if a wall sits on the straight segment between two world points
+function segmentBlocked(from, to) {
+  if (!solidRoots.length) return false;
+  _losDir.subVectors(to, from);
+  const dist = _losDir.length();
+  if (dist < 1e-3) return false;
+  _losDir.multiplyScalar(1 / dist);
+  _losRay.set(from, _losDir);
+  _losRay.far = dist - 0.4;   // small bias so the target's own body doesn't count
+  return _losRay.intersectObjects(solidRoots, true).length > 0;
+}
+
+// =====================================================================
+//  NPC navigation grid — A* so zombies route AROUND buildings/obstacles
+//  (a real path) while their local steering still handles fine, dynamic
+//  avoidance (other penguins, jitter). Rebuilt only when the level
+//  changes, so it's a cheap static occupancy grid.
+// =====================================================================
+const nav = { cell: 2.5, minX: -112, minZ: -112, cols: 0, rows: 0, blocked: null, R: 0.9 };
+let _navG = null, _navCame = null, _navGen = null, _navGenId = 0;
+let _navHeapI = null, _navHeapF = null, _navHeapSize = 0;
+const NAV_DC = [1, -1, 0, 0, 1, 1, -1, -1];
+const NAV_DR = [0, 0, 1, -1, 1, -1, 1, -1];
+const SQRT2 = 1.4142135623730951;
+
+function buildNavGrid() {
+  nav.cols = Math.ceil((-nav.minX * 2) / nav.cell);
+  nav.rows = nav.cols;
+  const N = nav.cols * nav.rows;
+  if (!nav.blocked || nav.blocked.length !== N) {
+    nav.blocked = new Uint8Array(N);
+    _navG = new Float32Array(N);
+    _navCame = new Int32Array(N);
+    _navGen = new Int32Array(N);
+    _navHeapI = new Int32Array(N * 8 + 16);   // lazy-duplicate binary heap
+    _navHeapF = new Float32Array(N * 8 + 16);
+  }
+  nav.blocked.fill(0);
+  for (let r = 0; r < nav.rows; r++) {
+    const cz = nav.minZ + (r + 0.5) * nav.cell;
+    for (let c = 0; c < nav.cols; c++) {
+      const cx = nav.minX + (c + 0.5) * nav.cell;
+      for (const s of solid) {
+        if (!blocksAt(s, 0)) continue;        // only ground-level walls block routing
+        const hit = s.r != null
+          ? ((cx - s.x) ** 2 + (cz - s.z) ** 2) < (s.r + nav.R) ** 2
+          : (Math.abs(cx - s.x) < s.hx + nav.R && Math.abs(cz - s.z) < s.hz + nav.R);
+        if (hit) { nav.blocked[r * nav.cols + c] = 1; break; }
+      }
+    }
+  }
+}
+function navCellBlocked(c, r) {
+  return c < 0 || r < 0 || c >= nav.cols || r >= nav.rows || nav.blocked[r * nav.cols + c] === 1;
+}
+// no blocked cell crosses the straight segment (for path smoothing + shortcuts)
+function navClearLine(x0, z0, x1, z1) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / (nav.cell * 0.5)));
+  for (let i = 1; i < steps; i++) {
+    const tt = i / steps;
+    const c = Math.floor((x0 + (x1 - x0) * tt - nav.minX) / nav.cell);
+    const r = Math.floor((z0 + (z1 - z0) * tt - nav.minZ) / nav.cell);
+    if (navCellBlocked(c, r)) return false;
+  }
+  return true;
+}
+// like navClearLine, but also requires clearance to either side so a zombie
+// won't try to thread a diagonal gap too narrow for its body (which is what made
+// it abandon its A* route and grind on building corners). Used only for the
+// "skip the path and beeline the player" decision.
+function navClearWide(x0, z0, x1, z1) {
+  if (!navClearLine(x0, z0, x1, z1)) return false;
+  let px = z1 - z0, pz = -(x1 - x0);
+  const pl = Math.hypot(px, pz) || 1; px = (px / pl) * 1.0; pz = (pz / pl) * 1.0;
+  return navClearLine(x0 + px, z0 + pz, x1 + px, z1 + pz)
+      && navClearLine(x0 - px, z0 - pz, x1 - px, z1 - pz);
+}
+function navNearestFree(c, r) {
+  if (!navCellBlocked(c, r)) return c + r * nav.cols;
+  for (let rad = 1; rad <= 8; rad++) {
+    for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
+      if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;  // ring only
+      const nc = c + dc, nr = r + dr;
+      if (!navCellBlocked(nc, nr)) return nc + nr * nav.cols;
+    }
+  }
+  return -1;
+}
+function octile(c0, r0, c1, r1) {
+  const dx = Math.abs(c0 - c1), dy = Math.abs(r0 - r1);
+  return (dx + dy) + (SQRT2 - 2) * Math.min(dx, dy);
+}
+function navHeapPush(idx, f) {
+  let i = ++_navHeapSize;
+  _navHeapI[i] = idx; _navHeapF[i] = f;
+  while (i > 1) {
+    const p = i >> 1;
+    if (_navHeapF[p] <= _navHeapF[i]) break;
+    const ti = _navHeapI[p]; _navHeapI[p] = _navHeapI[i]; _navHeapI[i] = ti;
+    const tf = _navHeapF[p]; _navHeapF[p] = _navHeapF[i]; _navHeapF[i] = tf;
+    i = p;
+  }
+}
+function navHeapPop() {
+  const top = _navHeapI[1];
+  _navHeapI[1] = _navHeapI[_navHeapSize]; _navHeapF[1] = _navHeapF[_navHeapSize];
+  _navHeapSize--;
+  let i = 1;
+  while (true) {
+    let s = i; const l = i * 2, r = i * 2 + 1;
+    if (l <= _navHeapSize && _navHeapF[l] < _navHeapF[s]) s = l;
+    if (r <= _navHeapSize && _navHeapF[r] < _navHeapF[s]) s = r;
+    if (s === i) break;
+    const ti = _navHeapI[s]; _navHeapI[s] = _navHeapI[i]; _navHeapI[i] = ti;
+    const tf = _navHeapF[s]; _navHeapF[s] = _navHeapF[i]; _navHeapF[i] = tf;
+    i = s;
+  }
+  return top;
+}
+// A* on the occupancy grid. Returns smoothed world-space waypoints, or null if
+// no route is found within the node budget (caller falls back to direct steer).
+function navFindPath(sx, sz, tx, tz, maxNodes = 2600) {
+  if (!nav.blocked) return null;
+  const cols = nav.cols;
+  let sc = clamp(Math.floor((sx - nav.minX) / nav.cell), 0, cols - 1);
+  let sr = clamp(Math.floor((sz - nav.minZ) / nav.cell), 0, nav.rows - 1);
+  let tc = clamp(Math.floor((tx - nav.minX) / nav.cell), 0, cols - 1);
+  let tr = clamp(Math.floor((tz - nav.minZ) / nav.cell), 0, nav.rows - 1);
+  let startI = sr * cols + sc, goalI = tr * cols + tc;
+  if (navCellBlocked(tc, tr)) {
+    const f = navNearestFree(tc, tr); if (f < 0) return null;
+    goalI = f; tc = f % cols; tr = (f - tc) / cols;
+  }
+  if (navCellBlocked(sc, sr)) {
+    const f = navNearestFree(sc, sr);
+    if (f >= 0) { startI = f; sc = f % cols; sr = (f - sc) / cols; }
+  }
+  if (startI === goalI) return [{ x: tx, z: tz }];
+  const gen = ++_navGenId;
+  _navHeapSize = 0;
+  _navGen[startI] = gen; _navG[startI] = 0; _navCame[startI] = -1;
+  navHeapPush(startI, octile(sc, sr, tc, tr));
+  let found = false, nodes = 0;
+  while (_navHeapSize > 0 && nodes < maxNodes) {
+    const cur = navHeapPop();
+    if (cur === goalI) { found = true; break; }
+    if (_navGen[cur] === gen && _navG[cur] === Infinity) continue;
+    nodes++;
+    const cc = cur % cols, cr = (cur - cc) / cols;
+    const gc = _navG[cur];
+    for (let k = 0; k < 8; k++) {
+      const dc = NAV_DC[k], dr = NAV_DR[k];
+      const nc = cc + dc, nr = cr + dr;
+      if (navCellBlocked(nc, nr)) continue;
+      if (dc !== 0 && dr !== 0 && (navCellBlocked(cc + dc, cr) || navCellBlocked(cc, cr + dr))) continue;
+      const ni = nr * cols + nc;
+      const ng = gc + (dc !== 0 && dr !== 0 ? SQRT2 : 1);
+      if (_navGen[ni] !== gen || ng < _navG[ni]) {
+        _navGen[ni] = gen; _navG[ni] = ng; _navCame[ni] = cur;
+        navHeapPush(ni, ng + octile(nc, nr, tc, tr));
+      }
+    }
+  }
+  if (!found) return null;
+  const cells = [];
+  let p = goalI;
+  while (p !== -1) { cells.push(p); if (p === startI) break; p = _navCame[p]; }
+  cells.reverse();
+  const pts = [];
+  for (const ci of cells) {
+    const c = ci % cols, r = (ci - c) / cols;
+    pts.push({ x: nav.minX + (c + 0.5) * nav.cell, z: nav.minZ + (r + 0.5) * nav.cell });
+  }
+  pts.push({ x: tx, z: tz });
+  return navSmooth(pts);
+}
+// string-pulling: drop intermediate waypoints we have clear line-of-sight past,
+// so paths become straight diagonals instead of blocky grid steps
+function navSmooth(pts) {
+  if (pts.length <= 2) return pts;
+  const out = [pts[0]];
+  let i = 0;
+  while (i < pts.length - 1) {
+    let j = pts.length - 1;
+    for (; j > i + 1; j--) if (navClearLine(pts[i].x, pts[i].z, pts[j].x, pts[j].z)) break;
+    out.push(pts[j]); i = j;
+  }
+  return out;
+}
+// pick where a chasing zombie should aim THIS frame: straight at the target if
+// it has line-of-sight, otherwise the next waypoint of its A* route (recomputed
+// on a short, jittered cooldown so the herd doesn't all solve on the same frame)
+function npcSteerTarget(npc, pos, tgt, dt) {
+  if (navClearWide(pos.x, pos.z, tgt.x, tgt.z)) { npc.path = null; npc.turnBias = 0; return tgt; }
+  npc.pathCD = (npc.pathCD ?? 0) - dt;
+  if (!npc.path || npc.pathI >= npc.path.length || npc.pathCD <= 0) {
+    npc.pathCD = 0.35 + Math.random() * 0.4;
+    npc.path = navFindPath(pos.x, pos.z, tgt.x, tgt.z);
+    npc.pathI = 0;
+  }
+  const path = npc.path;
+  if (!path || !path.length) return tgt;
+  while (npc.pathI < path.length - 1) {
+    const wp = path[npc.pathI];
+    if (Math.hypot(pos.x - wp.x, pos.z - wp.z) < nav.cell) npc.pathI++;
+    else break;
+  }
+  return path[Math.min(npc.pathI, path.length - 1)];
+}
+
+// COD-style crowd spacing: a steering vector pushing this zombie away from any
+// others that are crowding its personal bubble, so the horde packs in close but
+// doesn't stack on the exact same spot. Returns a (capped) world-space x/z nudge.
+const _sep = { x: 0, z: 0 };
+function npcSeparation(npc, pos) {
+  let sx = 0, sz = 0;
+  const myR = 0.75 * npc.scale;
+  for (const o of npcs) {
+    if (o === npc || o.dead || o.flying || o.state !== 'chase') continue;
+    const dx = pos.x - o.group.position.x;
+    const dz = pos.z - o.group.position.z;
+    const want = myR + 0.75 * o.scale + 0.35;        // desired centre-to-centre gap
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= want * want || d2 < 1e-5) continue;
+    const d = Math.sqrt(d2);
+    const w = (want - d) / want;                      // stronger the more they overlap
+    sx += (dx / d) * w; sz += (dz / d) * w;
+  }
+  const l = Math.hypot(sx, sz);
+  if (l > 1.3) { sx = sx / l * 1.3; sz = sz / l * 1.3; }
+  _sep.x = sx; _sep.z = sz;
+  return _sep;
+}
+
+// =====================================================================
+//  Brute "roll charge"
+// ---------------------------------------------------------------------
+//  The big penguins occasionally plant their feet, wind up with a squash-and-
+//  lean tell, then barrel-roll in a LOCKED straight line — only stopping when
+//  they smash a wall, bowl the player over, or run out of steam. Returns true
+//  while a charge is active, so the caller skips its normal chase steering.
+// =====================================================================
+const ROLL_SPEED = 18;
+function rollHud(npc, pos) {
+  npc.hb.sprite.position.set(pos.x, pos.y + 3.0 + npc.scale * 1.0, pos.z);
+  npc.hb.sprite.visible = !segmentBlocked(camera.position, _hbTmp.set(pos.x, pos.y + 1.3 * npc.scale, pos.z));
+}
+function handleBruteRoll(npc, pos, tgt, distP, distLocal, reach, dt, t) {
+  const rs = npc.rollState || 'none';
+  const baseS = npc.scale;
+
+  if (rs === 'none') {
+    // launch a wind-up when off cooldown, grounded, at a chargeable range, with
+    // a clear straight lane to the player (so it actually has room to barrel in)
+    if (npc.onGround && (npc.rollCD ?? 0) <= 0 && distP > 6 && distP < 30 &&
+        navClearWide(pos.x, pos.z, tgt.x, tgt.z)) {
+      npc.rollState = 'windup';
+      npc.rollTimer = 0.6;
+      npc.moving = false;
+      sfx.groan();
+      broadcastChat(npc.group, 'RRRAAAH!', 3.0 + baseS * 1.15, npc.netId);
+    }
+    return false;
+  }
+
+  if (rs === 'windup') {
+    npc.moving = false;
+    npc.rollTimer -= dt;
+    // keep tracking the player while coiling, lock the heading at launch
+    npc.heading = Math.atan2(tgt.x - pos.x, tgt.z - pos.z);
+    npc.group.rotation.y = lerpAngle(npc.group.rotation.y, npc.heading, 1 - Math.exp(-14 * dt));
+    const k = clamp(1 - npc.rollTimer / 0.6, 0, 1);     // 0 -> 1 across the windup
+    const squash = Math.sin(k * Math.PI) * 0.28;        // bulge low, peaks mid-windup
+    npc.group.scale.set(baseS * (1 + squash * 0.6), baseS * (1 - squash), baseS * (1 + squash * 0.6));
+    npc.group.rotation.x = -0.35 * k;                   // rock back, coiling the spring
+    npc.group.rotation.z = 0;
+    if (npc.rollTimer <= 0) {
+      npc.rollState = 'rolling';
+      npc.rollTimer = 1.6;                              // hard time cap
+      npc.rollDist = 0;
+      npc.rollDir = { x: Math.sin(npc.heading), z: Math.cos(npc.heading) };
+      npc.rollHit = false;
+      npc.rollSpin = 0;
+      npc.group.scale.setScalar(baseS);
+      sfx.land();
+    }
+    npcGroundVertical(npc, dt);
+    rollHud(npc, pos);
+    return true;
+  }
+
+  if (rs === 'rolling') {
+    npc.rollTimer -= dt;
+    npc.moving = true;
+    const step = ROLL_SPEED * dt;
+    const look = 0.6 + baseS * 0.5;
+    const probe = pos.clone();
+    probe.x += npc.rollDir.x * look; probe.z += npc.rollDir.z * look;
+    const hitWall = collides(probe, true);              // a solid wall straight ahead
+    if (!hitWall) { pos.x += npc.rollDir.x * step; pos.z += npc.rollDir.z * step; npc.rollDist += step; }
+    // somersault forward along the travel direction (local pitch under YXZ)
+    npc.rollSpin += dt * 16;
+    npc.group.rotation.y = npc.heading;
+    npc.group.rotation.x = npc.rollSpin;
+    npc.group.rotation.z = 0;
+    // bowl the local player over (once per charge)
+    if (!npc.rollHit && distLocal < reach + 0.7) {
+      damagePlayer(16 + baseS * 5);
+      npc.rollHit = true;
+    }
+    if (hitWall || npc.rollTimer <= 0 || npc.rollDist > 32 || npc.rollHit) {
+      npc.rollState = 'recover';
+      npc.rollTimer = hitWall ? 0.95 : 0.5;             // longer daze after eating a wall
+      if (hitWall) sfx.land();
+    }
+    npcGroundVertical(npc, dt);
+    rollHud(npc, pos);
+    return true;
+  }
+
+  if (rs === 'recover') {
+    npc.moving = false;
+    npc.rollTimer -= dt;
+    // ease the tumble to a stop landing upright, with a dizzy side wobble
+    const upright = Math.round(npc.group.rotation.x / (Math.PI * 2)) * (Math.PI * 2);
+    npc.group.rotation.x = THREE.MathUtils.lerp(npc.group.rotation.x, upright, 1 - Math.exp(-8 * dt));
+    npc.group.rotation.z = Math.sin(t * 20) * 0.12 * clamp(npc.rollTimer / 0.95, 0, 1);
+    npc.group.rotation.y = npc.heading;
+    if (npc.rollTimer <= 0) {
+      npc.rollState = 'none';
+      npc.rollCD = 5 + Math.random() * 4;               // breather before the next charge
+      npc.group.rotation.x = 0; npc.group.rotation.z = 0;
+      npc.group.scale.setScalar(baseS);
+    }
+    npcGroundVertical(npc, dt);
+    rollHud(npc, pos);
+    return true;
+  }
+  return false;
+}
+
 function currentZone() {
   let nearest = zones[0];
   let dist = Infinity;
@@ -3021,6 +3076,7 @@ document.addEventListener('mousemove', (e) => {
   }
 });
 document.addEventListener('wheel', (e) => {
+  if (editorActive) return;
   if (!started && !spectating) return;
   const wasFP = camDist <= FP_DIST;
   camDist = clamp(camDist + e.deltaY * 0.01, CAM_MIN_DIST, CAM_MAX_DIST);
@@ -3037,6 +3093,7 @@ document.addEventListener('wheel', (e) => {
   }
 }, { passive: true });
 document.addEventListener('mousedown', (e) => {
+  if (editorActive) return;
   if (!started) return;
   sfx.resume();
   const onCanvas = e.target === renderer.domElement;
@@ -3055,6 +3112,7 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 document.addEventListener('mouseup', (e) => {
+  if (editorActive) { firing = false; return; }
   if (e.button === 0) firing = false;
   if (e.button === 2 && dragging) {
     dragging = false;
@@ -3064,15 +3122,12 @@ document.addEventListener('mouseup', (e) => {
 // safety: stop auto-firing if the window loses focus
 window.addEventListener('blur', () => { firing = false; });
 document.addEventListener('keydown', (e) => {
+  if (editorActive) return;
   keys.add(e.code);
   if (!started) return;
   if (e.code === 'Space') e.preventDefault();
-  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat) {
-    if (exhausted) { toast('😮‍💨 Catch your breath…'); }
-    else { sprintOn = !sprintOn; toast(sprintOn ? '🏃 Sprint on' : '🚶 Sprint off'); }
-  }
   if (e.code === 'KeyR' && hasGun) reloadGun();
-  if (e.code === 'KeyE') buyPistol();
+  if (e.code === 'KeyE') { buyPistol(); tryInteractGameObjects(); }
   if (e.code === 'KeyF') tryBuyUpgrade();
   if (e.code === 'KeyM') toast(sfx.toggle() ? '🔊 Sound on' : '🔇 Sound muted');
   const idx = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
@@ -3091,6 +3146,9 @@ function doEmote(i) {
 function move(dt) {
   if (!started) return;
 
+  // tick down the candy speed boost
+  if (speedBoostT > 0) { speedBoostT = Math.max(0, speedBoostT - dt); updateBoostHUD(); }
+
   // ---- frozen in place (boss ice crater) — locked for 5s, taking 5 dmg/sec ----
   if (frozenTimer > 0) {
     frozenTimer = Math.max(0, frozenTimer - dt);
@@ -3098,7 +3156,8 @@ function move(dt) {
     moving = false;
     velY -= GRAVITY * dt;
     let fy = player.group.position.y + velY * dt;
-    if (fy <= 0) { fy = 0; velY = 0; onGround = true; }
+    const gy = groundHeightAt(player.group.position.x, player.group.position.z, 0);
+    if (fy <= gy) { fy = gy; velY = 0; onGround = true; }
     player.group.position.y = fy;
     // tick damage once per second while frozen
     freezeHurtTick -= dt;
@@ -3112,21 +3171,16 @@ function move(dt) {
   }
 
   // ---- vertical physics (jump + gravity) ----
+  // Ground height is resolved AFTER the horizontal move below, so the player
+  // follows whatever surface they walk onto (hill, dock, …) like a Unity
+  // character controller, instead of floating on a flat y=0 plane.
   if (keys.has('Space') && onGround) {
     velY = JUMP_SPEED;
     onGround = false;
     sfx.jump();
   }
   velY -= GRAVITY * dt;
-  let ny = player.group.position.y + velY * dt;
-  if (ny <= 0) {
-    ny = 0;
-    velY = 0;
-    onGround = true;
-  }
-  player.group.position.y = ny;
-  if (onGround && wasAir) sfx.land();
-  wasAir = !onGround;
+  player.group.position.y += velY * dt;
 
   // ---- horizontal movement (with air control) ----
   desired.set(0, 0, 0);
@@ -3139,16 +3193,47 @@ function move(dt) {
     velocity.multiplyScalar(Math.exp(-12 * dt));
   } else {
     desired.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    const speed = (sprintOn && stamina > 0) ? 9 : 5;
+    const walking = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const boost = speedBoostT > 0 ? SPEED_BOOST_MULT : 1;
+    const speed = (walking ? WALK_SPEED : RUN_SPEED) * boost;
     velocity.lerp(desired.multiplyScalar(speed), 1 - Math.exp(-12 * dt));
     const targetYaw = Math.atan2(velocity.x, velocity.z);
     player.group.rotation.y = lerpAngle(player.group.rotation.y, targetYaw, 1 - Math.exp(-12 * dt));
   }
-  // apply horizontal velocity every frame so momentum carries while airborne
-  const tryX = player.group.position.clone(); tryX.x += velocity.x * dt;
-  if (!collides(tryX)) player.group.position.x = tryX.x;
-  const tryZ = player.group.position.clone(); tryZ.z += velocity.z * dt;
-  if (!collides(tryZ)) player.group.position.z = tryZ.z;
+  // apply horizontal velocity every frame so momentum carries while airborne.
+  // moveBlocked() allows escaping a box you're already overlapping (so you can
+  // never get permanently frozen inside a collider) while still walling you out.
+  const cur = player.group.position;
+  // A move onto a walkable surface is rejected if that surface is steeper than
+  // the slope limit AND rises more than a step above us — i.e. it's a wall/cliff
+  // you can't ascend (you can still walk along or down it). Small steps within
+  // STEP_UP are always allowed, matching a Unity character controller.
+  const blockedBySlope = (x, z) => {
+    const g = probeGround(x, z);
+    return g.hit && g.normY < COS_MAX_SLOPE && (g.y - cur.y) > STEP_UP;
+  };
+  const tryX = cur.clone(); tryX.x += velocity.x * dt;
+  if (!moveBlocked(cur, tryX) && !blockedBySlope(tryX.x, cur.z)) cur.x = tryX.x;
+  const tryZ = cur.clone(); tryZ.z += velocity.z * dt;
+  if (!moveBlocked(cur, tryZ) && !blockedBySlope(cur.x, tryZ.z)) cur.z = tryZ.z;
+
+  // ---- ground following with smooth step/slope easing ----
+  // The body eases toward the surface height instead of teleporting, so small
+  // steps and slope changes feel smooth rather than a hard snap. Crisp landings
+  // are preserved because gravity carries us down until we're within a step.
+  const groundY = groundHeightAt(cur.x, cur.z, 0);
+  if (velY > 0 && cur.y > groundY) {
+    onGround = false;                             // rising through a jump
+  } else if (cur.y - groundY > STEP_DOWN) {
+    onGround = false;                             // well above ground → falling
+  } else {
+    onGround = true; velY = 0;                    // standing on / stepping onto the surface
+    const k = 1 - Math.exp(-STEP_SMOOTH * dt);
+    cur.y += (groundY - cur.y) * k;
+    if (Math.abs(groundY - cur.y) < 0.015) cur.y = groundY;
+  }
+  if (onGround && wasAir) sfx.land();
+  wasAir = !onGround;
 
   // footstep crunches in the snow
   const speedNow = Math.hypot(velocity.x, velocity.z);
@@ -3161,27 +3246,8 @@ function move(dt) {
   } else {
     stepTimer = 0;
   }
-
-  // ---- stamina (forgiving): only drains while actually sprint-running ----
-  const sprintingNow = sprintOn && moving && onGround && stamina > 0;
-  if (sprintingNow) {
-    stamina = Math.max(0, stamina - STAMINA_DRAIN * dt);
-    if (stamina === 0) { sprintOn = false; exhausted = true; toast('😮‍💨 Out of breath!'); }
-  } else {
-    stamina = Math.min(STAMINA_MAX, stamina + STAMINA_REGEN * dt);
-    if (exhausted && stamina >= STAMINA_RECOVER) exhausted = false;
-  }
-  updateStaminaBar();
 }
 
-function updateStaminaBar() {
-  const f = stamina / STAMINA_MAX;
-  staminaFill.style.width = (f * 100) + '%';
-  staminaFill.style.background = exhausted ? '#ff7b54' : f > 0.4 ? '#7cd6ff' : '#ffd23f';
-  const show = started && f < 0.999;
-  staminaBar.style.display = show ? 'block' : 'none';
-  staminaBar.style.opacity = show ? '1' : '0';
-}
 function lerpAngle(a, b, t) {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
   return a + d * t;
@@ -3189,8 +3255,11 @@ function lerpAngle(a, b, t) {
 
 // animate a penguin's waddle/flap given speed factor [0..1]
 function animatePenguin(pen, speed, t, phase) {
-  const wobble = Math.sin(phase) * 0.12 * speed;
-  pen.group.rotation.z = wobble;
+  const roll = Math.sin(phase) * 0.1 * speed;
+  pen.group.rotation.z = roll;
+  // counter-roll the head so it stays roughly level — without this the whole
+  // body tips to one side each step and the waddle reads as lopsided/limping
+  if (pen.parts.head) pen.parts.head.rotation.z = -roll * 0.55;
   pen.parts.body.position.y = pen.baseBodyY + Math.abs(Math.sin(phase)) * 0.06 * speed + (speed < 0.05 ? Math.sin(t * 2) * 0.015 : 0);
   pen.parts.head.position.y = pen.baseHeadY + Math.sin(phase + 0.5) * 0.04 * speed;
   for (const f of pen.parts.flippers) {
@@ -3260,7 +3329,6 @@ function respawnPlayer() {
   damageFlash = 0;
   vignette.style.opacity = '0';
   frozenTimer = 0; playerIce.visible = false; frostOverlay.style.opacity = '0';
-  stamina = STAMINA_MAX; exhausted = false;
   let sx = 0, sz = 0, found = false;
   for (const [, r] of remotePlayers) {
     r.pen.group.visible = true;             // un-hide anyone we were POV-spectating
@@ -3411,6 +3479,7 @@ function pushLocalState() {
     hasGun,
     gl: gunLevel,
     down: spectating,
+    frozen: frozenTimer > 0,
     hp: Math.ceil(playerHP),
     cash,
     fireSeq: localFireSeq,
@@ -3517,6 +3586,21 @@ function nearestPlayerPos(x, z) {
   return _np;
 }
 
+// is the player nearest to (x,z) — the boss's ice target — currently frozen?
+// (each machine reports its own frozen flag, so this holds in multiplayer too)
+function nearestPlayerFrozen(x, z) {
+  let bd = Infinity, frozen = false, found = false;
+  if (!spectating) { bd = (player.group.position.x - x) ** 2 + (player.group.position.z - z) ** 2; frozen = frozenTimer > 0; found = true; }
+  if (mpActive()) {
+    eachRemote((id, s) => {
+      if (s.x == null || s.down) return;
+      const d = (s.x - x) ** 2 + (s.z - z) ** 2;
+      if (d < bd) { bd = d; frozen = !!s.frozen; found = true; }
+    });
+  }
+  return found && frozen;
+}
+
 // ---------- HOST: serialize + broadcast the world ----------
 let bannerSeq = 0;
 let bannerText = '';
@@ -3538,6 +3622,9 @@ function broadcastChat(group, text, headY, nid) {
 function hostBroadcast() {
   const arr = [];
   for (const n of npcs) {
+    // brute roll-charge phase rides along in bits 3-4 so clients can render the
+    // wind-up squash + tumbling roll and apply the heavy charge hit themselves
+    const rollCode = n.rollState === 'windup' ? 1 : n.rollState === 'rolling' ? 2 : n.rollState === 'recover' ? 3 : 0;
     arr.push([
       n.netId,
       Math.round(n.group.position.x * 100) / 100,
@@ -3547,7 +3634,7 @@ function hostBroadcast() {
       Math.max(0, Math.ceil(n.hp)),
       n.maxHp,
       Math.round(n.scale * 100) / 100,
-      (n.dead ? 1 : 0) | (n.moving ? 2 : 0) | (n.isZombie ? 4 : 0),
+      (n.dead ? 1 : 0) | (n.moving ? 2 : 0) | (n.isZombie ? 4 : 0) | (rollCode << 3),
       n.color,
     ]);
   }
@@ -3559,6 +3646,7 @@ function hostBroadcast() {
   setGlobal('boss', bossRef && !bossRef.dead ? { hp: Math.max(0, Math.ceil(bossRef.hp)), max: bossRef.maxHp } : null);
   setGlobal('meds', medpacks.map((m) => [m.id, Math.round(m.x * 10) / 10, Math.round(m.z * 10) / 10]));
   setGlobal('ammos', ammoDrops.map((a) => [a.id, Math.round(a.x * 10) / 10, Math.round(a.z * 10) / 10, a.amount]));
+  setGlobal('candy', candyDrops.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10]));
   setGlobal('kf', killFeed);
   setGlobal('cf', chatFeed);
   setGlobal('craters', iceCraters.map((c) => [c.id, Math.round(c.x * 10) / 10, Math.round(c.z * 10) / 10, craterArmed(c.life) ? 1 : 0]));
@@ -3587,6 +3675,7 @@ function hostReadInputs() {
     clientPickSeq.set(pid, data.seq);
     for (const req of data.reqs) {
       if (req.kind === 'med') removeMedById(req.id);
+      else if (req.kind === 'candy') removeCandyById(req.id);
       else removeAmmoById(req.id);
     }
   });
@@ -3631,6 +3720,7 @@ function clientReconcile(dt, t) {
     const [nid, x, z, ry, ti, hp, maxHp, scale, flags, color] = e;
     seen.add(nid);
     const dead = !!(flags & 1), mv = !!(flags & 2), zombie = !!(flags & 4);
+    const rollCode = (flags >> 3) & 3;   // 0 none, 1 windup, 2 rolling, 3 recover
     const type = TYPE_LIST[ti] || 'shambler';
     let g = ghosts.get(nid);
     const justCreated = !g;
@@ -3654,19 +3744,53 @@ function clientReconcile(dt, t) {
       spawnBloodPool(grp.position.x, grp.position.z);
       if (type === 'bomber') explodeAt(grp.position);
     }
+    // track roll state for client-side rendering + charge-hit detection
+    g.rolling = rollCode === 2;
+    if (rollCode === 2 && !g.wasRolling) g.rollHit = false;  // a fresh charge began
+    g.wasRolling = rollCode === 2;
+
     if (g.dead) {
       g.deathT += dt;
       grp.rotation.z = lerpAngle(grp.rotation.z, Math.PI / 2, 1 - Math.exp(-9 * dt));
       grp.position.y = Math.max(0, grp.position.y - dt * 0.6);
+    } else if (rollCode === 1) {
+      // wind-up: crouch low + rock back (mirrors the host's tell)
+      g.windupK = Math.min(1, (g.windupK || 0) + dt / 0.6);
+      const squash = Math.sin(g.windupK * Math.PI) * 0.28;
+      grp.scale.set(scale * (1 + squash * 0.6), scale * (1 - squash), scale * (1 + squash * 0.6));
+      grp.rotation.x = -0.35 * g.windupK;
+      grp.rotation.z = 0;
+      grp.position.y = 0;
+    } else if (rollCode === 2) {
+      // rolling: somersault forward along the locked heading
+      g.windupK = 0;
+      g.rollSpin = (g.rollSpin || 0) + dt * 16;
+      grp.scale.setScalar(scale);
+      grp.rotation.x = g.rollSpin;
+      grp.rotation.z = 0;
+      grp.position.y = 0;
+    } else if (rollCode === 3) {
+      // recover: settle upright with a dizzy wobble
+      const upright = Math.round(grp.rotation.x / (Math.PI * 2)) * (Math.PI * 2);
+      grp.rotation.x = THREE.MathUtils.lerp(grp.rotation.x, upright, 1 - Math.exp(-8 * dt));
+      grp.rotation.z = Math.sin(t * 20) * 0.1;
+      grp.scale.setScalar(scale);
+      grp.position.y = 0;
     } else {
+      if (grp.rotation.x) grp.rotation.x = 0;   // clear any leftover tumble
+      g.windupK = 0; g.rollSpin = 0;
+      grp.scale.setScalar(scale);
       g.phase += dt * (mv ? 11 : 1.5);
       animatePenguin(g.pen, mv ? 1 : 0.2, t, g.phase);
       grp.position.y = 0;
-      if (zombie && type !== 'boss') {
-        g.hb.sprite.visible = true;
-        g.hb.set(hp / Math.max(1, maxHp));
-        g.hb.sprite.position.set(grp.position.x, 3.0 + scale * 1.0, grp.position.z);
-      }
+      // wounded ghosts drip a blood trail too (HP is replicated, so it matches)
+      if (zombie) bleedTrail(g, grp, hp, maxHp, dt, mv);
+    }
+    if (!g.dead && zombie && type !== 'boss') {
+      g.hb.set(hp / Math.max(1, maxHp));
+      g.hb.sprite.position.set(grp.position.x, 3.0 + scale * 1.0, grp.position.z);
+      // hide the bar when a wall sits between the camera and the enemy
+      g.hb.sprite.visible = !segmentBlocked(camera.position, _hbTmp.set(grp.position.x, grp.position.y + 1.3 * scale, grp.position.z));
     }
   }
   for (const [nid, g] of ghosts) {
@@ -3679,10 +3803,17 @@ function clientReconcile(dt, t) {
 function clientGhostDanger(dt) {
   if (gameOver || !started) return;
   for (const [, g] of ghosts) {
-    if (g.dead || !g.zombie || g.type === 'spitter' || g.type === 'bomber') continue;
+    if (g.dead || !g.zombie) continue;
     const p = g.pen.group.position;
     const reach = 1.2 + g.scale * 0.9;
-    if (Math.hypot(player.group.position.x - p.x, player.group.position.z - p.z) < reach) {
+    const d = Math.hypot(player.group.position.x - p.x, player.group.position.z - p.z);
+    // a charging brute bowls us over for a big one-time hit per charge
+    if (g.rolling) {
+      if (!g.rollHit && d < reach + 0.7) { damagePlayer(16 + g.scale * 5); g.rollHit = true; }
+      continue;
+    }
+    if (g.type === 'spitter' || g.type === 'bomber') continue;
+    if (d < reach) {
       g.atkCD -= dt;
       if (g.atkCD <= 0) { damagePlayer(g.contactDmg); g.atkCD = 1.0; }
     }
@@ -3768,6 +3899,7 @@ function updateBossBarFromNet() {
 // ---------- CLIENT: pickups (request removal from host, apply locally) ----------
 const ghostMeds = new Map();
 const ghostAmmo = new Map();
+const ghostCandy = new Map();
 let pickSeq = 0;
 const pickOut = [];
 function flushPick() { setMyState('pkq', { seq: ++pickSeq, reqs: pickOut.slice(-20) }, true); }
@@ -3777,9 +3909,9 @@ function clientPickups(dt, t) {
   for (const [id, x, z] of meds) {
     mseen.add(id);
     let grp = ghostMeds.get(id);
-    if (!grp) { grp = makeMedpack(); grp.position.set(x, 0, z); grp.userData = { x, z }; world.add(grp); ghostMeds.set(id, grp); }
+    if (!grp) { grp = makeMedpack(); grp.userData = { x, z, gy: groundHeightAt(x, z, 0) }; grp.position.set(x, grp.userData.gy, z); world.add(grp); ghostMeds.set(id, grp); }
     grp.rotation.y += dt * 1.5;
-    grp.position.y = Math.sin(t * 2 + id) * 0.18 + 0.1;
+    grp.position.y = (grp.userData.gy || 0) + Math.sin(t * 2 + id) * 0.18 + 0.1;
     if (started && !gameOver && !grp.userData.claimed && playerHP < PLAYER_MAX_HP &&
         Math.hypot(player.group.position.x - grp.userData.x, player.group.position.z - grp.userData.z) < 1.9) {
       grp.userData.claimed = true;
@@ -3798,9 +3930,9 @@ function clientPickups(dt, t) {
   for (const [id, x, z, amount] of ammos) {
     aseen.add(id);
     let grp = ghostAmmo.get(id);
-    if (!grp) { grp = makeAmmoBox(); grp.position.set(x, 0, z); grp.userData = { x, z, amount }; world.add(grp); ghostAmmo.set(id, grp); }
+    if (!grp) { grp = makeAmmoBox(); grp.userData = { x, z, amount, gy: groundHeightAt(x, z, 0) }; grp.position.set(x, grp.userData.gy, z); world.add(grp); ghostAmmo.set(id, grp); }
     grp.rotation.y += dt * 1.8;
-    grp.position.y = Math.sin(t * 2.4 + id) * 0.14 + 0.06;
+    grp.position.y = (grp.userData.gy || 0) + Math.sin(t * 2.4 + id) * 0.14 + 0.06;
     if (started && !gameOver && hasGun && !grp.userData.claimed && ammoReserve < RESERVE_MAX &&
         Math.hypot(player.group.position.x - grp.userData.x, player.group.position.z - grp.userData.z) < 1.9) {
       grp.userData.claimed = true;
@@ -3812,6 +3944,24 @@ function clientPickups(dt, t) {
     }
   }
   for (const [id, grp] of ghostAmmo) if (!aseen.has(id)) { world.remove(grp); ghostAmmo.delete(id); }
+
+  const candy = getGlobal('candy') || [];
+  const cseen = new Set();
+  for (const [id, x, z] of candy) {
+    cseen.add(id);
+    let grp = ghostCandy.get(id);
+    if (!grp) { grp = makeCandyBar(); grp.userData = { x, z, gy: groundHeightAt(x, z, 0) }; grp.position.set(x, grp.userData.gy, z); world.add(grp); ghostCandy.set(id, grp); }
+    grp.rotation.y += dt * 2.2;
+    grp.position.y = (grp.userData.gy || 0) + Math.sin(t * 2.6 + id) * 0.16 + 0.08;
+    if (started && !gameOver && !grp.userData.claimed &&
+        Math.hypot(player.group.position.x - grp.userData.x, player.group.position.z - grp.userData.z) < 1.9) {
+      grp.userData.claimed = true;
+      grantSpeedBoost();
+      floatText('SUGAR RUSH!', new THREE.Vector3(grp.userData.x, 1.3, grp.userData.z), '#ff5fb0', 20);
+      pickOut.push({ kind: 'candy', id }); flushPick();
+    }
+  }
+  for (const [id, grp] of ghostCandy) if (!cseen.has(id)) { world.remove(grp); ghostCandy.delete(id); }
 }
 
 // ---------- CLIENT: outgoing hits ----------
@@ -3829,6 +3979,7 @@ function enterClientMode() {
   npcs.length = 0;
   for (const m of medpacks) world.remove(m.group); medpacks.length = 0;
   for (const a of ammoDrops) world.remove(a.group); ammoDrops.length = 0;
+  for (const c of candyDrops) world.remove(c.group); candyDrops.length = 0;
   for (const s of spits) world.remove(s.m); spits.length = 0;
   for (const b of iceBalls) world.remove(b.m); iceBalls.length = 0;
   for (const c of iceCraters) world.remove(c.group); iceCraters.length = 0;
@@ -3839,6 +3990,30 @@ function enterClientMode() {
 // =====================================================================
 const _toP = new THREE.Vector3();
 const _perp = new THREE.Vector3();
+
+// gravity + ground-following for a penguin, so NPCs walk on terrain/slopes and
+// land from jumps exactly like the player. Climbs walkable surfaces (hills,
+// mounds, docks) by snapping up to them; falls when there's air underfoot.
+function npcGroundVertical(npc, dt) {
+  const pos = npc.group.position;
+  npc.velY = (npc.velY ?? 0) - GRAVITY * dt;
+  pos.y += npc.velY * dt;
+  const gy = groundHeightAt(pos.x, pos.z, 0);
+  if (npc.velY <= 0 && pos.y - gy <= STEP_DOWN) {
+    pos.y = gy; npc.velY = 0; npc.onGround = true;     // on / stepping onto the surface
+  } else {
+    npc.onGround = false;                              // airborne (jumping / falling)
+  }
+  // keep the shadow pinned to the ground (it's a child of the group, so without
+  // this it rides up with the body on jumps) and shrink it with jump height
+  if (npc.parts && npc.parts.shadow) {
+    const h = pos.y - gy;
+    npc.parts.shadow.position.y = 0.02 - h;
+    const s = clamp(1 - h * 0.18, 0.45, 1);
+    npc.parts.shadow.scale.set(s, s, s);
+  }
+}
+
 function updateNPCs(dt, t) {
   for (let i = npcs.length - 1; i >= 0; i--) {
     const npc = npcs[i];
@@ -3865,8 +4040,9 @@ function updateNPCs(dt, t) {
       npc.fvy -= ICE_GRAV * dt;
       pos.x += npc.fvx * dt; pos.z += npc.fvz * dt; pos.y += npc.fvy * dt;
       npc.group.rotation.x += dt * 7;
-      if (pos.y <= 0) {
-        pos.y = 0; npc.flying = false; npc.group.rotation.x = 0;
+      const landY = groundHeightAt(pos.x, pos.z, 0);
+      if (pos.y <= landY) {
+        pos.y = landY; npc.flying = false; npc.velY = 0; npc.group.rotation.x = 0;
         npc.lunge = 0.9; npc.lungeTimer = 1.4; npc.moving = true;
         sfx.land();
       }
@@ -3881,6 +4057,13 @@ function updateNPCs(dt, t) {
       // distance to *this* machine's player — melee only ever hurts the local one
       const distLocal = Math.hypot(player.group.position.x - pos.x, player.group.position.z - pos.z);
       const reach = 1.2 + npc.scale * 0.9;
+
+      // big brutes periodically wind up and barrel-roll in a straight line; while
+      // a charge is in progress this fully owns the brute's movement + animation
+      if (npc.type === 'brute') {
+        npc.rollCD = (npc.rollCD ?? (3 + Math.random() * 3)) - dt;
+        if (handleBruteRoll(npc, pos, tgt, distP, distLocal, reach, dt, t)) continue;
+      }
 
       // random trash-talk in a chat bubble (only some penguins, staggered)
       npc.chatTimer -= dt;
@@ -3910,13 +4093,19 @@ function updateNPCs(dt, t) {
       if (npc.type === 'boss') {
         npc.iceTimer = (npc.iceTimer ?? 3.5) - dt;
         if (npc.iceTimer <= 0 && distP < 64) {
-          npc.iceTimer = 4.5 + Math.random() * 2;
-          const volley = 3 + Math.floor(round / 5);
-          for (let q = 0; q < volley; q++) {
-            const ox = (Math.random() - 0.5) * 9, oz = (Math.random() - 0.5) * 9;
-            spawnIceBall(new THREE.Vector3(pos.x, pos.y + 3.6, pos.z), tgt.x + ox, tgt.z + oz);
+          // don't pile ice onto a player who's already trapped — hold fire and
+          // retry shortly so the volley resumes right after they thaw out
+          if (nearestPlayerFrozen(pos.x, pos.z)) {
+            npc.iceTimer = 0.5;
+          } else {
+            npc.iceTimer = 4.5 + Math.random() * 2;
+            const volley = 3 + Math.floor(round / 5);
+            for (let q = 0; q < volley; q++) {
+              const ox = (Math.random() - 0.5) * 9, oz = (Math.random() - 0.5) * 9;
+              spawnIceBall(new THREE.Vector3(pos.x, pos.y + 3.6, pos.z), tgt.x + ox, tgt.z + oz);
+            }
+            sfx.groan();
           }
-          sfx.groan();
         }
         npc.throwTimer = (npc.throwTimer ?? 6) - dt;
         if (npc.throwTimer <= 0 && distP < 58 && aliveZombies() < HORDE_CAP) {
@@ -3930,8 +4119,16 @@ function updateNPCs(dt, t) {
       if (npc.type === 'spitter') approach = distP > 13 ? 1 : distP < 8 ? -1 : 0;
       else if (distP < reach) approach = 0;
 
+      const sep = npcSeparation(npc, pos);            // crowd spacing nudge
+
       if (approach === 0) {
         npc.moving = false;
+        // gently declump while attacking so the swarm surrounds the player in a
+        // ring instead of all piling onto the exact same point
+        if ((sep.x || sep.z)) {
+          const ns = pos.clone(); ns.x += sep.x * 1.8 * dt; ns.z += sep.z * 1.8 * dt;
+          if (!collides(ns, true)) { pos.x = ns.x; pos.z = ns.z; }
+        }
         if (npc.type !== 'spitter' && distLocal < reach) {
           // melee swipe — only hits the player simulating this machine
           npc.attackCD -= dt;
@@ -3943,9 +4140,18 @@ function updateNPCs(dt, t) {
       } else {
         npc.moving = true;
         _toP.normalize();
-        // desired heading toward the player (or away), plus a weaving sway offset
+        // desired heading toward the player (or away), plus a weaving sway offset.
+        // When advancing, aim along the A* route so we round buildings instead of
+        // grinding into them; retreating spitters still just back straight off.
         npc.swayPhase += dt * npc.swayFreq;
-        let baseAng = Math.atan2(_toP.x, _toP.z);
+        let aimX = tgt.x, aimZ = tgt.z;
+        if (approach > 0) { const st = npcSteerTarget(npc, pos, tgt, dt); aimX = st.x; aimZ = st.z; }
+        // blend the crowd-separation nudge into the travel direction so they
+        // spread out laterally while still flowing toward the player
+        let dirX = aimX - pos.x, dirZ = aimZ - pos.z;
+        const dl = Math.hypot(dirX, dirZ) || 1; dirX /= dl; dirZ /= dl;
+        if (approach > 0) { dirX += sep.x * 0.6; dirZ += sep.z * 0.6; }
+        let baseAng = Math.atan2(dirX, dirZ);
         if (approach < 0) baseAng += Math.PI; // retreat
         const swayOff = Math.sin(npc.swayPhase) * npc.sway * 0.18;
         // occasional lunges (bursts of speed)
@@ -3953,27 +4159,68 @@ function updateNPCs(dt, t) {
         if (npc.lungeTimer <= 0) { npc.lunge = 0.5; npc.lungeTimer = 3 + Math.random() * 5; }
         let sp = npc.speed;
         if (npc.lunge > 0) { npc.lunge -= dt; sp *= 1.9; }
-        // probe several candidate headings and take the first clear one so they
-        // steer AROUND buildings instead of grinding into corners
+        // probe several candidate headings and take a clear one so they steer
+        // AROUND buildings instead of grinding into corners. Two key details:
+        //  - look a fixed distance ahead (not just this frame's tiny step) so a
+        //    wall is detected early enough to turn before grinding it; and
+        //  - remember which way we last turned (turnBias) and try that side
+        //    first, so a zombie commits to rounding a corner one way instead of
+        //    flip-flopping left/right (which looked like it spun a full 360).
+        const look = Math.max(sp * dt, 0.6 + npc.scale * 0.35);
+        const bias = npc.turnBias >= 0 ? 1 : -1;
         const cands = npc.stuck > 0.6
-          ? [1.6, -1.6, 2.4, -2.4, 0.8, -0.8, Math.PI]
-          : [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6];
-        let movedAny = false;
+          ? [bias * 1.4, bias * 2.2, bias * 0.8, -bias * 1.4, -bias * 2.2, -bias * 0.8, Math.PI]
+          : [0, bias * 0.45, bias * 0.95, -bias * 0.45, bias * 1.5, -bias * 0.95, -bias * 1.5];
+        let movedAny = false, chosenOff = 0;
+        // if we're somehow stuck inside a collider, move regardless so we escape
+        const trapped = insideSolid(pos);
         for (const off of cands) {
           const ang = baseAng + swayOff + off;
-          const step = { x: Math.sin(ang) * sp * dt, z: Math.cos(ang) * sp * dt };
-          const np = pos.clone(); np.x += step.x; np.z += step.z;
-          if (!collides(np, true)) { pos.copy(np); npc.heading = ang; movedAny = true; break; }
+          const sa = Math.sin(ang), ca = Math.cos(ang);
+          const probe = pos.clone(); probe.x += sa * look; probe.z += ca * look;
+          if (trapped || !collides(probe, true)) {
+            const step = Math.min(sp * dt, look);
+            pos.x += sa * step; pos.z += ca * step;
+            npc.heading = ang; movedAny = true; chosenOff = off;
+            break;
+          }
         }
-        if (movedAny) npc.stuck = Math.max(0, npc.stuck - dt * 2);
-        else npc.stuck += dt;
+        if (movedAny) {
+          npc.stuck = Math.max(0, npc.stuck - dt * 2);
+          if (chosenOff > 0.1) npc.turnBias = 1;
+          else if (chosenOff < -0.1) npc.turnBias = -1;
+        } else npc.stuck += dt;
         npc.group.rotation.y = lerpAngle(npc.group.rotation.y, npc.heading, 1 - Math.exp(-9 * dt));
       }
-      // forward lurch + faster, jerky waddle
-      npc.group.rotation.x = THREE.MathUtils.lerp(npc.group.rotation.x, npc.moving ? 0.2 : 0, 1 - Math.exp(-8 * dt));
+
+      // COD-style leap: hop up toward a player perched somewhere higher, or to
+      // vault when shoving against an obstacle. Height of the jump adapts to how
+      // far up the player is so they can actually reach ledges/hilltops.
+      npc.jumpCD = (npc.jumpCD ?? 0) - dt;
+      if (npc.onGround && npc.type !== 'boss' && npc.jumpCD <= 0) {
+        const above = player.group.position.y - pos.y;
+        if ((above > 1.0 && distLocal < 8) || (npc.stuck > 0.5 && above > 0.4)) {
+          const need = Math.min(Math.max(above + 0.6, 1.4), 5.5);
+          npc.velY = Math.sqrt(2 * GRAVITY * need);     // just enough to clear it
+          npc.onGround = false;
+          npc.stuck = 0;
+          npc.jumpCD = 0.9 + Math.random() * 0.5;
+        }
+      }
+      // gravity + terrain following (also resolves the jump arc + landing)
+      npcGroundVertical(npc, dt);
+
+      // wounded penguins drip a blood trail as they move
+      if (npc.isZombie) bleedTrail(npc, npc.group, npc.hp, npc.maxHp, dt, npc.moving && npc.onGround);
+
+      // forward lurch + faster, jerky waddle (tuck legs while airborne)
+      const lurch = npc.onGround ? (npc.moving ? 0.2 : 0) : -0.3;
+      npc.group.rotation.x = THREE.MathUtils.lerp(npc.group.rotation.x, lurch, 1 - Math.exp(-8 * dt));
       npc.phase += dt * (9 + npc.speed * 1.5);
       animatePenguin(npc, npc.moving ? 1 : 0.2, t, npc.phase);
-      npc.hb.sprite.position.set(pos.x, 3.0 + npc.scale * 1.0, pos.z);
+      npc.hb.sprite.position.set(pos.x, pos.y + 3.0 + npc.scale * 1.0, pos.z);
+      // hide the bar when a wall sits between the camera and the enemy
+      npc.hb.sprite.visible = !segmentBlocked(camera.position, _hbTmp.set(pos.x, pos.y + 1.3 * npc.scale, pos.z));
       continue;
     }
 
@@ -3997,14 +4244,16 @@ function updateNPCs(dt, t) {
       toTarget.normalize();
       const step = toTarget.multiplyScalar(npc.speed * dt);
       const np = pos.clone().add(step);
-      if (!collides(np)) pos.copy(np);
+      // move freely if already overlapping a collider, so we never freeze
+      if (insideSolid(pos) || !collides(np)) pos.copy(np);
       else npc.target = pickWanderTarget();
       npc.heading = Math.atan2(step.x, step.z);
       npc.group.rotation.y = lerpAngle(npc.group.rotation.y, npc.heading, 1 - Math.exp(-8 * dt));
     }
+    npcGroundVertical(npc, dt);                         // walk on terrain/slopes too
     npc.phase = npc.phase + dt * 8 * (npc.moving ? 1 : 0);
     animatePenguin(npc, npc.moving ? 1 : 0, t, npc.phase);
-    npc.tag.position.set(pos.x, 3.0, pos.z);
+    npc.tag.position.set(pos.x, pos.y + 3.0, pos.z);
   }
 }
 
@@ -4343,16 +4592,383 @@ function updateAtmosphere(dt, t) {
     }
   }
 
-  // gentle lake shimmer
-  lake.material.opacity = 0.82 + Math.sin(t * 1.5) * 0.06;
 }
 
 let lastDt = 0.016;
+// =====================================================================
+//  Level system — additive editor layer loaded from a committed JSON map.
+//  The hardcoded town above is the immutable base; placed objects live in
+//  `editorLayer` and contribute collision via rebuildSolid(). The same
+//  town.json ships to every client, so no runtime sync is needed.
+// =====================================================================
+const editorLayer = new THREE.Group();
+editorLayer.name = 'editorLayer';
+world.add(editorLayer);
+
+const placedObjects = [];   // [{ id, def, obj }]
+let placedSeq = 0;
+let baseSolid = null;       // snapshot of the hardcoded collision boxes
+
+function applyDefTransform(obj, def) {
+  obj.position.set(def.position?.x ?? 0, def.position?.y ?? 0, def.position?.z ?? 0);
+  obj.rotation.set(def.rotation?.x ?? 0, def.rotation?.y ?? 0, def.rotation?.z ?? 0);
+  obj.scale.set(def.scale?.x ?? 1, def.scale?.y ?? 1, def.scale?.z ?? 1);
+}
+
+// "smart" collision: derive an object's footprint from its actual mesh
+// bounding box (in world space) rather than a hand-tuned value. This tracks
+// the real geometry, scale and rotation, so the collider matches what you see.
+const PLAYER_MARGIN = 0.35;   // small padding for the player's body radius
+// WALKABLE = surfaces you stand ON. The player raycasts straight down onto
+// these and follows the real mesh, so domes/slopes (hill, snow mounds, igloo
+// roofs) are CLIMBED exactly instead of hitting an offset box wall. They never
+// produce a blocking collider.
+const WALKABLE = new Set(['ground', 'plazafloor', 'lake', 'hill', 'path', 'dock', 'snowmound', 'igloo']);
+// NO_COLLIDE = overhead / flat decor (hanging lights, bunting, floating signs)
+// that should neither block nor be stood on.
+const NO_COLLIDE = new Set(['lightstring', 'bunting', 'labelsign']);
+const _fpBox = new THREE.Box3();
+const _fpTmp = new THREE.Box3();
+const _fpWorld = new THREE.Vector3();
+function meshFootprint(rec) {
+  const def = rec.def;
+  const meta = CATALOG[def.type];
+  const collide = def.collide ?? (meta ? meta.collide : false);
+  if (!collide || !rec.obj || WALKABLE.has(def.type) || NO_COLLIDE.has(def.type)) return null;
+  rec.obj.updateWorldMatrix(true, true);
+  // Read the real mesh extents — used for the vertical span (top/base) so the
+  // step-up / overhang logic is accurate, and as the X/Z fallback.
+  _fpBox.makeEmpty();
+  let has = false;
+  rec.obj.traverse((m) => {
+    if (!m.isMesh || !m.geometry) return;          // meshes only — ignore sprites/labels
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    _fpTmp.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+    _fpBox.union(_fpTmp); has = true;
+  });
+  if (!has) return null;
+
+  // Prefer the hand-authored footprint: it's the intended collision shape,
+  // tight to the structure (a building's WALLS) and ignores oversized decorative
+  // geometry like the roof cone or the awning that the raw mesh bbox would
+  // wrongly include. Fall back to the mesh bbox only if no footprint is defined.
+  rec.obj.getWorldPosition(_fpWorld);
+  let cx = _fpWorld.x, cz = _fpWorld.z, hx, hz;
+  const fp = meta && meta.footprint && meta.footprint({ ...(meta.params || {}), ...(def.params || {}) });
+  // round collider: a circular footprint (no boxy corners) for spherical props
+  if (fp && fp.r != null) {
+    const sxz = Math.max(Math.abs(rec.obj.scale.x), Math.abs(rec.obj.scale.z));
+    const r = fp.r * sxz + PLAYER_MARGIN;
+    if (r <= 0) return null;
+    return { x: cx, z: cz, r, base: _fpBox.min.y, top: _fpBox.max.y };
+  }
+  if (fp) {
+    const lhx = fp.hx * Math.abs(rec.obj.scale.x);
+    const lhz = fp.hz * Math.abs(rec.obj.scale.z);
+    // grow the rotated rectangle's AABB so a turned building still fits snugly
+    const yaw = rec.obj.rotation.y || 0;
+    const c = Math.abs(Math.cos(yaw)), s = Math.abs(Math.sin(yaw));
+    hx = lhx * c + lhz * s;
+    hz = lhx * s + lhz * c;
+  } else {
+    hx = (_fpBox.max.x - _fpBox.min.x) / 2;
+    hz = (_fpBox.max.z - _fpBox.min.z) / 2;
+    cx = (_fpBox.min.x + _fpBox.max.x) / 2;
+    cz = (_fpBox.min.z + _fpBox.max.z) / 2;
+  }
+  if (hx <= 0 || hz <= 0) return null;
+  return {
+    x: cx,
+    z: cz,
+    hx: hx + PLAYER_MARGIN,
+    hz: hz + PLAYER_MARGIN,
+    base: _fpBox.min.y,   // bottom of the mesh (overhangs don't block)
+    top: _fpBox.max.y,    // top of the mesh (low ledges are step-overs)
+  };
+}
+
+// recompute the collision list + walkable surfaces from base + placed objects
+function rebuildSolid() {
+  if (!baseSolid) baseSolid = solid.slice();
+  solid.length = 0;
+  walkRoots.length = 0;
+  solidRoots.length = 0;
+  for (const s of baseSolid) solid.push(s);
+  for (const rec of placedObjects) {
+    const fp = meshFootprint(rec);
+    if (fp) solid.push(fp);
+    // blocking colliders double as line-of-sight occluders for shots + health bars
+    if (fp && rec.obj) solidRoots.push(rec.obj);
+    if (rec.obj && WALKABLE.has(rec.def.type)) walkRoots.push(rec.obj);
+  }
+  buildNavGrid();   // refresh the A* occupancy grid from the new collider layout
+  syncSceneRefs();
+}
+
+// resolve gameplay objects (shop counter, pistol pickup) from the placed set
+// so the buy/upgrade logic tracks them wherever the editor puts them.
+function syncSceneRefs() {
+  shopRec = placedObjects.find((r) => r.def.type === 'shop') || null;
+  gunPickupRec = placedObjects.find((r) => r.def.type === 'gunpickup') || null;
+  if (gunPickupRec) gunPickupRec.obj.visible = !hasGun;
+}
+
+// curated context handed to every component script (decoupled from internals).
+// NOTE: we deliberately do NOT pass the whole THREE namespace here — doing so
+// makes it a runtime value and defeats three.js tree-shaking in the prod
+// bundle. Components import the specific three classes they need directly.
+const gameCtx = {
+  scene, world, toast, sfx,
+  get player() { return player; },
+  netRole,
+};
+
+// collect emissive meshes tagged for twinkling into the shared animation list
+function collectTwinkles(rec) {
+  rec.twinkles = [];
+  rec.obj.traverse?.((m) => {
+    if (m.isMesh && m.material && m.userData.twinkle) {
+      const entry = { mat: m.material, base: m.userData.twinkle.base, amp: m.userData.twinkle.amp ?? 0.5, phase: Math.random() * 6 };
+      twinkles.push(entry);
+      rec.twinkles.push(entry);
+    }
+  });
+}
+function releaseTwinkles(rec) {
+  if (!rec.twinkles) return;
+  for (const e of rec.twinkles) { const i = twinkles.indexOf(e); if (i >= 0) twinkles.splice(i, 1); }
+  rec.twinkles = [];
+}
+
+// (re)build the component script instances attached to a placed object
+function instantiateComponents(rec) {
+  destroyComponents(rec);
+  rec.components = [];
+  const go = { id: rec.id, def: rec.def, object3d: rec.obj };
+  for (const c of (rec.def.components || [])) {
+    const meta = COMPONENTS[c.type];
+    if (!meta) continue;
+    const params = { ...meta.params, ...(c.params || {}) };
+    try {
+      const inst = meta.create(go, params, gameCtx);
+      if (inst) { rec.components.push(inst); inst.start?.(); }
+    } catch (e) { console.error(`[component:${c.type}] create failed`, e); }
+  }
+}
+function destroyComponents(rec) {
+  if (!rec.components) return;
+  for (const inst of rec.components) { try { inst.onDestroy?.(); } catch (e) { /* ignore */ } }
+  rec.components = [];
+}
+
+// tick all component update() hooks (runs in game + editor preview)
+function updateGameObjects(dt, t) {
+  for (const rec of placedObjects) {
+    if (!rec.components) continue;
+    for (const inst of rec.components) inst.update?.(dt, t);
+  }
+}
+
+// fire the nearest interactable GameObject's script when the player presses E
+function tryInteractGameObjects() {
+  const px = player.group.position.x, pz = player.group.position.z;
+  let best = null, bestD = Infinity;
+  for (const rec of placedObjects) {
+    if (!rec.components) continue;
+    for (const inst of rec.components) {
+      if (typeof inst.onInteract !== 'function') continue;
+      if (inst.canInteract && !inst.canInteract()) continue;
+      const r = inst.interactRadius ?? 3;
+      const d = Math.hypot(px - rec.obj.position.x, pz - rec.obj.position.z);
+      if (d <= r && d < bestD) { best = inst; bestD = d; }
+    }
+  }
+  if (best) { best.onInteract(player); return true; }
+  return false;
+}
+
+function spawnDef(def) {
+  if (!def.id) def.id = `obj_${Date.now().toString(36)}_${(placedSeq++).toString(36)}`;
+  if (!def.components) def.components = [];
+  const obj = makeObject(def.type, def.params);
+  if (!obj) return null;
+  applyDefTransform(obj, def);
+  obj.userData.placedId = def.id;
+  editorLayer.add(obj);
+  const rec = { id: def.id, def, obj, components: [], twinkles: [] };
+  placedObjects.push(rec);
+  collectTwinkles(rec);
+  instantiateComponents(rec);
+  return rec;
+}
+
+function disposeObj(obj) {
+  obj.traverse?.((m) => {
+    if (!m.isMesh && !m.isSprite) return;
+    m.geometry?.dispose?.();
+    const mm = m.material;
+    if (Array.isArray(mm)) mm.forEach((x) => { x.map?.dispose?.(); x.dispose?.(); });
+    else if (mm) { mm.map?.dispose?.(); mm.dispose?.(); }
+  });
+}
+
+function removeRecord(rec) {
+  const i = placedObjects.indexOf(rec);
+  if (i >= 0) placedObjects.splice(i, 1);
+  destroyComponents(rec);
+  releaseTwinkles(rec);
+  editorLayer.remove(rec.obj);
+  disposeObj(rec.obj);
+}
+
+function clearLevel() {
+  for (const rec of placedObjects.slice()) {
+    destroyComponents(rec);
+    releaseTwinkles(rec);
+    editorLayer.remove(rec.obj);
+    disposeObj(rec.obj);
+  }
+  placedObjects.length = 0;
+}
+
+function loadLevel(data) {
+  clearLevel();
+  const objs = (data && data.objects) || [];
+  for (const def of objs) spawnDef(JSON.parse(JSON.stringify(def)));
+  rebuildSolid();
+}
+
+function getLevelData() {
+  return { version: 1, objects: placedObjects.map((r) => r.def) };
+}
+
+// rebuild an object's visual + components after its params change (editor)
+function refreshObject(rec) {
+  releaseTwinkles(rec);
+  destroyComponents(rec);
+  editorLayer.remove(rec.obj);
+  disposeObj(rec.obj);
+  rec.obj = makeObject(rec.def.type, rec.def.params);
+  applyDefTransform(rec.obj, rec.def);
+  rec.obj.userData.placedId = rec.def.id;
+  editorLayer.add(rec.obj);
+  collectTwinkles(rec);
+  instantiateComponents(rec);
+  return rec.obj;
+}
+
+// load the committed map for everyone (host, client, solo, prod) at startup.
+// ---- register builders that depend on factories living in main.js ----
+// (the keeper penguin, the pistol pickup, and floating location label signs)
+registerType('keeper', {
+  label: 'Keeper (NPC)', category: 'Gameplay', collide: false,
+  params: { color: 0x39304a, tag: '🔫 Gunther' },
+  schema: [{ key: 'tag', label: 'Name tag', type: 'text', default: '🔫 Gunther' }, { key: 'color', label: 'Color', type: 'color', default: 0x39304a }],
+  footprint: () => ({ hx: 0.9, hz: 0.9 }),
+  build(p) {
+    const g = new THREE.Group();
+    const peng = makePenguin({ color: p.color, hat: 'cap', scale: 1.1 });
+    g.add(peng.group);
+    if (p.tag) {
+      const tag = makeNameTag(p.tag, 0xffcf5a);
+      tag.position.set(0, 3.0, 0);
+      g.add(tag);
+    }
+    return g;
+  },
+});
+registerType('gunpickup', {
+  label: 'Pistol Pickup', category: 'Gameplay', collide: false,
+  params: {}, schema: [], footprint: () => ({ hx: 0.6, hz: 0.6 }),
+  build() {
+    const g = new THREE.Group();
+    const gun = makePistol(1.2);
+    gun.position.set(0, 0.25, 0);
+    gun.rotation.set(0, 0.5, 0.2);
+    g.add(gun);
+    const glow = mesh(new THREE.TorusGeometry(0.7, 0.05, 8, 24), new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0xffc21a, emissiveIntensity: 1.3 }), false, false);
+    glow.rotation.x = Math.PI / 2;
+    g.add(glow);
+    return g;
+  },
+});
+registerType('labelsign', {
+  label: 'Label Sign', category: 'Props', collide: false,
+  params: { text: 'Sign', bg: 'rgba(15,70,104,.92)', height: 2.4 },
+  schema: [{ key: 'text', label: 'Text', type: 'text', default: 'Sign' }, { key: 'height', label: 'Size', type: 'number', default: 2.4, min: 0.5, max: 8, step: 0.1 }],
+  footprint: () => null,
+  build(p) {
+    const sprite = makeLabelSprite(p.text || 'Sign', { bg: p.bg });
+    const h = p.height || 2.4;
+    sprite.scale.set(h * sprite.userData.aspect, h, 1);
+    const g = new THREE.Group();
+    g.add(sprite);
+    return g;
+  },
+});
+
+// If town.json hasn't been authored yet, fall back to the built-in town so
+// the world isn't empty and the editor opens with editable props.
+loadLevel(townLevel && townLevel.objects && townLevel.objects.length ? townLevel : defaultTown());
+
+// Townsfolk are spawned before the level (so collision wasn't known yet) at
+// y=0. Now that the walkable surfaces exist, rest them on the real ground —
+// and relocate any that ended up perched on an elevated prop (igloo dome, snow
+// mound) to a nearby flat spot, so none appear to drop out of the sky on load.
+function settleNPCsToGround() {
+  for (const npc of npcs) {
+    let x = npc.group.position.x, z = npc.group.position.z;
+    if (groundHeightAt(x, z, 0) > 0.4) {
+      for (let tries = 0; tries < 20; tries++) {
+        const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 30;
+        const nx = Math.cos(a) * r, nz = Math.sin(a) * r;
+        if (!collides({ x: nx, z: nz }) && groundHeightAt(nx, nz, 0) <= 0.4) { x = nx; z = nz; break; }
+      }
+    }
+    npc.group.position.set(x, groundHeightAt(x, z, 0), z);
+    npc.velY = 0; npc.onGround = true;
+  }
+}
+settleNPCsToGround();
+
+// ---- dev-only editor bootstrap (excluded from production builds) ----
+let editorActive = false;
+function setEditorActive(v) {
+  editorActive = v;
+  if (v) {
+    keys.clear();
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+}
+let editorInstance = null;
+if (import.meta.env.DEV) {
+  const editorAPI = {
+    THREE, scene, camera, renderer, world, editorLayer,
+    placedObjects, CATALOG, PALETTE, CATEGORIES, defaultDef, mergedParams, makeObject,
+    COMPONENTS, COMPONENT_TYPES, defaultComponent,
+    spawnDef, removeRecord, rebuildSolid, applyDefTransform, getLevelData, loadLevel,
+    refreshObject, instantiateComponents,
+    setEditorActive, isMultiplayer: () => mpActive(), toast,
+  };
+  import('./editor/editor.js')
+    .then((m) => { editorInstance = m.initEditor(editorAPI); })
+    .catch((e) => console.error('[editor] failed to load', e));
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
   lastDt = dt;
   const t = clock.elapsedTime;
+
+  // editor mode: pause the whole game sim, let the editor drive the camera.
+  // Component scripts still tick so behaviors (Spin/Bob/Glow) can be previewed.
+  if (editorActive && editorInstance) {
+    updateGameObjects(dt, t);
+    editorInstance.update(dt);
+    renderer.render(scene, camera);
+    return;
+  }
 
   move(dt);
 
@@ -4374,7 +4990,9 @@ function animate() {
       f.rotation.x = -0.3;
     }
   } else {
-    player.group.rotation.x = THREE.MathUtils.lerp(player.group.rotation.x, 0, 1 - Math.exp(-12 * dt));
+    // lean slightly into the run so it reads as forward momentum, not a wobble
+    const leanX = moving ? 0.12 * playerSpeed : 0;
+    player.group.rotation.x = THREE.MathUtils.lerp(player.group.rotation.x, leanX, 1 - Math.exp(-12 * dt));
   }
 
   const role = netRole();
@@ -4390,13 +5008,13 @@ function animate() {
     clientCraters();
     updateBossBarFromNet();
     flushHits();
-    if (damageFlash > 0) { damageFlash = Math.max(0, damageFlash - dt * 1.6); vignette.style.opacity = String(damageFlash); }
   } else {
     // SOLO or HOST: run the full local simulation.
     updateHorde(dt);
     updateNPCs(dt, t);
     updateMedpacks(dt, t);
     updateAmmoDrops(dt, t);
+    updateCandyDrops(dt, t);
     updateIceBalls(dt);
     updateIceCraters(dt);
     updateBossBar();
@@ -4406,6 +5024,8 @@ function animate() {
       if (bcastAcc >= 0.05) { bcastAcc = 0; hostBroadcast(); }  // ~20 Hz world snapshot
     }
   }
+  updateDamageVignette(dt, t);
+  updateGameObjects(dt, t);
   updateUpgrader();
   updateBlasts(dt);
   updateSpits(dt);
@@ -4418,9 +5038,6 @@ function animate() {
   if (role !== 'client') checkGreetings(dt);
   pushLocalState();
   updateRemotePlayers(dt, t);
-
-  // landmark spin (hat) + gentle bob
-  plaza.position.y = Math.sin(t * 1.2) * 0.04;
 
   updateAtmosphere(dt, t);
 

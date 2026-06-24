@@ -1,0 +1,2824 @@
+{
+  "version": 1,
+  "objects": [
+    {
+      "id": "town_tree_0",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -45,
+        "y": 0,
+        "z": -26
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.3,
+        "y": 1.3,
+        "z": 1.3
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_1",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -40,
+        "y": 0,
+        "z": -18
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.95,
+        "y": 0.95,
+        "z": 0.95
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_2",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -48,
+        "y": 0,
+        "z": -4
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.45,
+        "y": 1.45,
+        "z": 1.45
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_3",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -41,
+        "y": 0,
+        "z": 12
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.1,
+        "y": 1.1,
+        "z": 1.1
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_4",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -33,
+        "y": 0,
+        "z": 22
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.2,
+        "y": 1.2,
+        "z": 1.2
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_5",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -18,
+        "y": 0,
+        "z": 32
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.95,
+        "y": 0.95,
+        "z": 0.95
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_6",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -12,
+        "y": 0,
+        "z": 46
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.2,
+        "y": 1.2,
+        "z": 1.2
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_7",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 23.317,
+        "y": 0,
+        "z": 47
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.25,
+        "y": 1.25,
+        "z": 1.25
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_8",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 37,
+        "y": 0,
+        "z": 37
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.2,
+        "y": 1.2,
+        "z": 1.2
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_9",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 45,
+        "y": 0,
+        "z": 21
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.95,
+        "y": 0.95,
+        "z": 0.95
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_10",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 50,
+        "y": 0,
+        "z": 4
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.45,
+        "y": 1.45,
+        "z": 1.45
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_11",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 47,
+        "y": 3,
+        "z": -20
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.15,
+        "y": 1.15,
+        "z": 1.15
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_12",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 25,
+        "y": 2,
+        "z": -36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.95,
+        "y": 0.95,
+        "z": 0.95
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_13",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 8,
+        "y": 0,
+        "z": -36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.25,
+        "y": 1.25,
+        "z": 1.25
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_14",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -10,
+        "y": 0,
+        "z": -36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_15",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -46,
+        "y": 0,
+        "z": 34
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1.1,
+        "y": 1.1,
+        "z": 1.1
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_16",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": -38,
+        "y": 0,
+        "z": 40
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 0.9,
+        "y": 0.9,
+        "z": 0.9
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_tree_17",
+      "type": "tree",
+      "name": "Pine Tree",
+      "position": {
+        "x": 42,
+        "y": 2,
+        "z": -34
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "snow": true,
+        "festive": true
+      },
+      "components": []
+    },
+    {
+      "id": "town_lamp_18",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": -9,
+        "y": 0,
+        "z": 9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_lamp_19",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": 9,
+        "y": 0,
+        "z": 9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_lamp_20",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": -9,
+        "y": 0,
+        "z": -9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_lamp_21",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": 9,
+        "y": 0,
+        "z": -9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_lamp_22",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 18
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_lamp_23",
+      "type": "lamp",
+      "name": "Lamp Post",
+      "position": {
+        "x": -14,
+        "y": 0,
+        "z": 11
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_building_24",
+      "type": "building",
+      "name": "Cocoa Café",
+      "position": {
+        "x": -30,
+        "y": 0,
+        "z": -12
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 11,
+        "d": 8,
+        "h": 6.6,
+        "wall": 16359516,
+        "roof": 9256015,
+        "awning": 12597547
+      },
+      "components": []
+    },
+    {
+      "id": "town_building_25",
+      "type": "building",
+      "name": "Hat Hut",
+      "position": {
+        "x": -9.931,
+        "y": 0,
+        "z": -22
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 9,
+        "d": 8,
+        "h": 5.8,
+        "wall": 16767082,
+        "roof": 4682906,
+        "awning": 3112928
+      },
+      "components": []
+    },
+    {
+      "id": "town_building_26",
+      "type": "building",
+      "name": "Game Garage",
+      "position": {
+        "x": 17,
+        "y": 0,
+        "z": -14
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 12,
+        "d": 9,
+        "h": 7.2,
+        "wall": 8703470,
+        "roof": 3501971,
+        "awning": 10182117
+      },
+      "components": []
+    },
+    {
+      "id": "town_building_27",
+      "type": "building",
+      "name": "Snow Lab",
+      "position": {
+        "x": 32,
+        "y": 0,
+        "z": 5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 10,
+        "d": 8,
+        "h": 6.4,
+        "wall": 10345354,
+        "roof": 5076332,
+        "awning": 3129182
+      },
+      "components": []
+    },
+    {
+      "id": "town_building_28",
+      "type": "building",
+      "name": "Pet Post",
+      "position": {
+        "x": -24,
+        "y": 0,
+        "z": 12
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 12,
+        "d": 9,
+        "h": 6.8,
+        "wall": 14722778,
+        "roof": 6051712,
+        "awning": 16744136
+      },
+      "components": []
+    },
+    {
+      "id": "town_igloo_29",
+      "type": "igloo",
+      "name": "Igloo 1",
+      "position": {
+        "x": -32,
+        "y": 0,
+        "z": 24
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "tint": 15661055
+      },
+      "components": []
+    },
+    {
+      "id": "town_igloo_30",
+      "type": "igloo",
+      "name": "Igloo 2",
+      "position": {
+        "x": -24,
+        "y": 0,
+        "z": 28
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "tint": 15200511
+      },
+      "components": []
+    },
+    {
+      "id": "town_igloo_31",
+      "type": "igloo",
+      "name": "Igloo 3",
+      "position": {
+        "x": -20,
+        "y": 0,
+        "z": 18
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "tint": 15985407
+      },
+      "components": []
+    },
+    {
+      "id": "town_gift_32",
+      "type": "gift",
+      "name": "Gift Box",
+      "position": {
+        "x": 2.6,
+        "y": 0,
+        "z": 2.4
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "color": 15022157
+      },
+      "components": []
+    },
+    {
+      "id": "town_gift_33",
+      "type": "gift",
+      "name": "Gift Box",
+      "position": {
+        "x": -2.8,
+        "y": 0,
+        "z": 2.2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "color": 3112928
+      },
+      "components": []
+    },
+    {
+      "id": "town_gift_34",
+      "type": "gift",
+      "name": "Gift Box",
+      "position": {
+        "x": 0.4,
+        "y": 0,
+        "z": 3.2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "color": 3523679
+      },
+      "components": []
+    },
+    {
+      "id": "town_gift_35",
+      "type": "gift",
+      "name": "Gift Box",
+      "position": {
+        "x": -1.6,
+        "y": 0,
+        "z": -2.8
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "color": 16765503
+      },
+      "components": []
+    },
+    {
+      "id": "town_gift_36",
+      "type": "gift",
+      "name": "Gift Box",
+      "position": {
+        "x": 2.4,
+        "y": 0,
+        "z": -2.2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "color": 10182117
+      },
+      "components": []
+    },
+    {
+      "id": "town_snowman_37",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": 12,
+        "y": 0,
+        "z": 6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowman_38",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": -12,
+        "y": 0,
+        "z": 7
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowman_39",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": 10,
+        "y": 0,
+        "z": -10
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowman_40",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": -11,
+        "y": 0,
+        "z": -9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowman_41",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": -6,
+        "y": 0,
+        "z": 16
+      },
+      "rotation": {
+        "x": -3.1416,
+        "y": 0.2618,
+        "z": -3.1416
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowman_42",
+      "type": "snowman",
+      "name": "Snowman",
+      "position": {
+        "x": 20,
+        "y": 0,
+        "z": 16
+      },
+      "rotation": {
+        "x": 3.1416,
+        "y": -0.7854,
+        "z": 3.1416
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bench_43",
+      "type": "bench",
+      "name": "Bench",
+      "position": {
+        "x": 12,
+        "y": 0,
+        "z": 1
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.5472,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bench_44",
+      "type": "bench",
+      "name": "Bench",
+      "position": {
+        "x": -12,
+        "y": 0,
+        "z": 2
+      },
+      "rotation": {
+        "x": -3.1416,
+        "y": 1.3326,
+        "z": -3.1416
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bench_45",
+      "type": "bench",
+      "name": "Bench",
+      "position": {
+        "x": 3,
+        "y": 0,
+        "z": 12
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.141592653589793,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bench_46",
+      "type": "bench",
+      "name": "Bench",
+      "position": {
+        "x": -4,
+        "y": 0,
+        "z": -12
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0.2618,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_47",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": 18,
+        "y": 0,
+        "z": -4
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_48",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": -18,
+        "y": 0,
+        "z": 4
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_49",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": 6,
+        "y": 0,
+        "z": -16
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_50",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": -16,
+        "y": 0,
+        "z": -14
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_51",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": 20,
+        "y": 0,
+        "z": 8
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowpile_52",
+      "type": "snowpile",
+      "name": "Snow Pile",
+      "position": {
+        "x": 14,
+        "y": 0,
+        "z": 18
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_53",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": 15,
+        "y": 0,
+        "z": -2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_54",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": -15,
+        "y": 0,
+        "z": -3
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_55",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": 4,
+        "y": 0,
+        "z": 18
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_56",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": -9,
+        "y": 0,
+        "z": 14
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_57",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": 19,
+        "y": 0,
+        "z": 2
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_58",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": -19,
+        "y": 0,
+        "z": 8
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_59",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": 9,
+        "y": 0,
+        "z": -15
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_bush_60",
+      "type": "bush",
+      "name": "Bush",
+      "position": {
+        "x": -6,
+        "y": 0,
+        "z": -16
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_ground_0",
+      "type": "ground",
+      "name": "Snow Ground",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "radius": 120
+      },
+      "components": []
+    },
+    {
+      "id": "town_lake_1",
+      "type": "lake",
+      "name": "Frozen Lake",
+      "position": {
+        "x": 2,
+        "y": 0,
+        "z": 38
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "radius": 16
+      },
+      "components": [
+        {
+          "type": "Shimmer",
+          "params": {
+            "amp": 0.06,
+            "speed": 1.5,
+            "base": 0.82
+          }
+        }
+      ]
+    },
+    {
+      "id": "town_hill_2",
+      "type": "hill",
+      "name": "Toboggan Hill",
+      "position": {
+        "x": 34,
+        "y": 0,
+        "z": -22
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_plazafloor_3",
+      "type": "plazafloor",
+      "name": "Plaza Floor",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "radius": 14
+      },
+      "components": []
+    },
+    {
+      "id": "town_snowmound_4",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 1.8904734800068799,
+        "y": 0,
+        "z": -71.18747234692142
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.372469391208142,
+        "y": 3.372469391208142,
+        "z": 3.372469391208142
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_5",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 34.5594745048518,
+        "y": 0,
+        "z": 53.52178433747117
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.556183908833191,
+        "y": 3.556183908833191,
+        "z": 3.556183908833191
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_6",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -44.692230761563664,
+        "y": 0,
+        "z": -54.18847164775579
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 5.299557394348085,
+        "y": 5.299557394348085,
+        "z": 5.299557394348085
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_7",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -47.95170479652886,
+        "y": 0,
+        "z": 39.449638575458906
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.6571828036103398,
+        "y": 3.6571828036103398,
+        "z": 3.6571828036103398
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_8",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -28.622004830167192,
+        "y": 0,
+        "z": -58.243002963306424
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.397598257753998,
+        "y": 3.397598257753998,
+        "z": 3.397598257753998
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_9",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -26.413413333269666,
+        "y": 0,
+        "z": -60.06773371731371
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 5.172458674525842,
+        "y": 5.172458674525842,
+        "z": 5.172458674525842
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_10",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -42.27074182339311,
+        "y": 0,
+        "z": -27.241591754736397
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.54076630808413,
+        "y": 4.54076630808413,
+        "z": 4.54076630808413
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_11",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 65.0555674710152,
+        "y": 0,
+        "z": 18.396434573472444
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2.6133093137759715,
+        "y": 2.6133093137759715,
+        "z": 2.6133093137759715
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_12",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 101.06123805520753,
+        "y": 0,
+        "z": -17.199561357572993
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.418764980044216,
+        "y": 3.418764980044216,
+        "z": 3.418764980044216
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_13",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 16.818589327485917,
+        "y": 0,
+        "z": 43.88224994647455
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.400011214194819,
+        "y": 4.400011214194819,
+        "z": 4.400011214194819
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_14",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 60.41166812432684,
+        "y": 0,
+        "z": -11.788124280953577
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.5977227361872792,
+        "y": 3.5977227361872792,
+        "z": 3.5977227361872792
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_15",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 36.3994439402517,
+        "y": 0,
+        "z": 35.745944251960026
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.7038663069251925,
+        "y": 3.7038663069251925,
+        "z": 3.7038663069251925
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_16",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 25.70079633836891,
+        "y": 0,
+        "z": -35.85753395011706
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2.9998054173775017,
+        "y": 2.9998054173775017,
+        "z": 2.9998054173775017
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_17",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -70.9910578493165,
+        "y": 0,
+        "z": 18.923214420988373
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.592059368034825,
+        "y": 4.592059368034825,
+        "z": 4.592059368034825
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_18",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 6.338337175605319,
+        "y": 0,
+        "z": -100.91085112582492
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.696930766105652,
+        "y": 4.696930766105652,
+        "z": 4.696930766105652
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_19",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 93.8586769804961,
+        "y": 0,
+        "z": -16.223992739498446
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.0753016800154,
+        "y": 4.0753016800154,
+        "z": 4.0753016800154
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_20",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -96.50088867295135,
+        "y": 0,
+        "z": -25.97878976465466
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.352447427343577,
+        "y": 3.352447427343577,
+        "z": 3.352447427343577
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_21",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -1.0895521432555377,
+        "y": 0,
+        "z": -55.3554906901805
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.4912443466018885,
+        "y": 4.4912443466018885,
+        "z": 4.4912443466018885
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_22",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 49.33997250349571,
+        "y": 0,
+        "z": -21.250730739384924
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 6.262804794125259,
+        "y": 6.262804794125259,
+        "z": 6.262804794125259
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_23",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -6.817481059579866,
+        "y": 0,
+        "z": 67.34778039739695
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 2.263089971849695,
+        "y": 2.263089971849695,
+        "z": 2.263089971849695
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_24",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 26.613487489403433,
+        "y": 0,
+        "z": 87.77578437128822
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.8115916275419295,
+        "y": 4.8115916275419295,
+        "z": 4.8115916275419295
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_25",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 39.076500466868836,
+        "y": 0,
+        "z": 51.59448961556176
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.765214226907119,
+        "y": 3.765214226907119,
+        "z": 3.765214226907119
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_26",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 43.62459334129622,
+        "y": 0,
+        "z": -41.86440177703561
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3.813360443338752,
+        "y": 3.813360443338752,
+        "z": 3.813360443338752
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_27",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 95.38685332430552,
+        "y": 0,
+        "z": -3.323052153449353
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 4.618429140420631,
+        "y": 4.618429140420631,
+        "z": 4.618429140420631
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_28",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": -71.19012688814226,
+        "y": 0,
+        "z": 59.60552507925363
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 6.756881219800562,
+        "y": 6.756881219800562,
+        "z": 6.756881219800562
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_snowmound_29",
+      "type": "snowmound",
+      "name": "Snow Mound",
+      "position": {
+        "x": 18,
+        "y": 0,
+        "z": -101.996
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 5.539,
+        "y": 5.539,
+        "z": 5.539
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "town_path_30",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 16
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 5.4,
+        "len": 22.16
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_31",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": 1,
+        "y": 0,
+        "z": 31
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0.1974,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "w": 5.4,
+        "len": 12.358039027185571
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_32",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": -9,
+        "y": 0,
+        "z": -1.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": -2.0344439357957027,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.8,
+        "len": 22.044611797498106
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_33",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": -25,
+        "y": 0,
+        "z": -8.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.9138202672156002,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.8,
+        "len": 16.786068747318506
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_34",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": 7.5,
+        "y": 0,
+        "z": -2.5
+      },
+      "rotation": {
+        "x": 0,
+        "y": 2.1112158270654806,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.8,
+        "len": 19.4128556845359
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_35",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": 23,
+        "y": 0,
+        "z": -11
+      },
+      "rotation": {
+        "x": 0,
+        "y": 2.0344439357957027,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.8,
+        "len": 19.80854381999832
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_36",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": -9.5,
+        "y": 0,
+        "z": 8
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.0191413442663497,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.6,
+        "len": 17.10433752247375
+      },
+      "components": []
+    },
+    {
+      "id": "town_path_37",
+      "type": "path",
+      "name": "Walkway",
+      "position": {
+        "x": -22,
+        "y": 0,
+        "z": 16
+      },
+      "rotation": {
+        "x": 0,
+        "y": -0.982793723247329,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "w": 4.6,
+        "len": 16.262205101855958
+      },
+      "components": []
+    },
+    {
+      "id": "town_lightstring_38",
+      "type": "lightstring",
+      "name": "String Lights",
+      "position": {
+        "x": 0,
+        "y": 4.4,
+        "z": 9
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 18,
+        "count": 9
+      },
+      "components": []
+    },
+    {
+      "id": "town_lightstring_39",
+      "type": "lightstring",
+      "name": "String Lights",
+      "position": {
+        "x": 9,
+        "y": 4.4,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 18,
+        "count": 9
+      },
+      "components": []
+    },
+    {
+      "id": "town_lightstring_40",
+      "type": "lightstring",
+      "name": "String Lights",
+      "position": {
+        "x": 0,
+        "y": 4.4,
+        "z": -9
+      },
+      "rotation": {
+        "x": 0,
+        "y": -3.141592653589793,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 18,
+        "count": 9
+      },
+      "components": []
+    },
+    {
+      "id": "town_lightstring_41",
+      "type": "lightstring",
+      "name": "String Lights",
+      "position": {
+        "x": -9,
+        "y": 4.4,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 18,
+        "count": 9
+      },
+      "components": []
+    },
+    {
+      "id": "town_bunting_42",
+      "type": "bunting",
+      "name": "Bunting",
+      "position": {
+        "x": 0,
+        "y": 5,
+        "z": 7
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 14,
+        "count": 10
+      },
+      "components": []
+    },
+    {
+      "id": "town_bunting_43",
+      "type": "bunting",
+      "name": "Bunting",
+      "position": {
+        "x": 7,
+        "y": 5,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 14,
+        "count": 10
+      },
+      "components": []
+    },
+    {
+      "id": "town_bunting_44",
+      "type": "bunting",
+      "name": "Bunting",
+      "position": {
+        "x": 0,
+        "y": 5,
+        "z": -7
+      },
+      "rotation": {
+        "x": 0,
+        "y": -3.141592653589793,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 14,
+        "count": 10
+      },
+      "components": []
+    },
+    {
+      "id": "town_bunting_45",
+      "type": "bunting",
+      "name": "Bunting",
+      "position": {
+        "x": -7,
+        "y": 5,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": -1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {
+        "len": 14,
+        "count": 10
+      },
+      "components": []
+    },
+    {
+      "id": "town_dock_46",
+      "type": "dock",
+      "name": "Dock (west)",
+      "position": {
+        "x": -7.4,
+        "y": 0,
+        "z": 36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "len": 24
+      },
+      "components": []
+    },
+    {
+      "id": "town_dock_47",
+      "type": "dock",
+      "name": "Dock (east)",
+      "position": {
+        "x": 11.4,
+        "y": 0,
+        "z": 36
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "len": 24
+      },
+      "components": []
+    },
+    {
+      "id": "town_dock_48",
+      "type": "dock",
+      "name": "Dock (cross)",
+      "position": {
+        "x": 2,
+        "y": 0,
+        "z": 48.6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 1.5707963267948966,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {
+        "len": 18
+      },
+      "components": []
+    },
+    {
+      "id": "town_snowgiant_55",
+      "type": "snowgiant",
+      "name": "Snowy Giant",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {},
+      "components": [
+        {
+          "type": "Bob",
+          "params": {
+            "amp": 0.04,
+            "speed": 1.2
+          }
+        }
+      ]
+    },
+    {
+      "id": "shop_main",
+      "type": "shop",
+      "name": "Weapon Shop",
+      "position": {
+        "x": 14,
+        "y": 0,
+        "z": 20
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": true,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "shop_keeper",
+      "type": "keeper",
+      "name": "Gunther",
+      "position": {
+        "x": 14,
+        "y": 0,
+        "z": 20.8
+      },
+      "rotation": {
+        "x": 0,
+        "y": 3.141592653589793,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": []
+    },
+    {
+      "id": "shop_gun",
+      "type": "gunpickup",
+      "name": "Pistol (pickup)",
+      "position": {
+        "x": 14,
+        "y": 1.6,
+        "z": 17.6
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "collide": false,
+      "params": {},
+      "components": [
+        {
+          "type": "Spin",
+          "params": {
+            "speed": 1.3,
+            "axis": "y"
+          }
+        },
+        {
+          "type": "Bob",
+          "params": {
+            "amp": 0.08,
+            "speed": 2
+          }
+        }
+      ]
+    }
+  ]
+}
