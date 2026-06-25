@@ -133,6 +133,14 @@ const sfx = (() => {
     toggle() { enabled = !enabled; if (ensure()) master.gain.setTargetAtTime(enabled ? 0.6 : 0, ctx.currentTime, 0.05); return enabled; },
     // ---- one-shots ----
     shot() { go((t) => { noise(0.12, t, 0.5, 'highpass', 950, 0.7); noise(0.18, t, 0.4, 'lowpass', 1500); tone(170, t, 0.12, 'square', 0.22, 60); }); },
+    // shotgun: a fat, throaty boom with a low body thump and a pump-rack tail
+    shotgun() { go((t) => {
+      noise(0.26, t, 0.6, 'lowpass', 1100, 0.6); noise(0.16, t, 0.5, 'highpass', 700);
+      tone(120, t, 0.2, 'square', 0.34, 46); tone(72, t, 0.26, 'sine', 0.42, 38);
+      noise(0.05, t + 0.22, 0.18, 'highpass', 2600); tone(380, t + 0.24, 0.05, 'square', 0.16, 220);  // chk-chk pump
+    }); },
+    // quick weapon swap — light mechanical clack
+    swap() { go((t) => { tone(360, t, 0.05, 'square', 0.16, 220); tone(560, t + 0.07, 0.05, 'square', 0.16, 320); }); },
     dryFire() { go((t) => tone(220, t, 0.04, 'square', 0.14)); },
     reload() { go((t) => { tone(300, t, 0.05, 'square', 0.2, 180); tone(420, t + 0.16, 0.05, 'square', 0.2, 260); tone(540, t + 0.38, 0.06, 'square', 0.22, 320); }); },
     explosion() { go((t) => { const N = noise(0.6, t, 0.75, 'lowpass', 1000); N.f.frequency.setValueAtTime(1200, t); N.f.frequency.exponentialRampToValueAtTime(120, t + 0.5); tone(68, t, 0.5, 'sine', 0.5, 38); }); },
@@ -1180,11 +1188,9 @@ let gunPickupRec = null;   // placed 'gunpickup' GameObject (hidden once bought)
 //  and a storefront screen opens (releasing the look-camera so you can use the
 //  mouse); buy/upgrade/restock in there; walk back out to close it and resume.
 // ---------------------------------------------------------------------
-const AMMO_PACK = 40;            // rounds per ammo crate
-const AMMO_PACK_COST = 120;      // base price at Mk.1
-// ammo gets pricier as the weapon levels up, so a maxed gun can't endlessly
-// restock for pocket change — keeps ammo a meaningful resource late game.
-function pistolAmmoCost() { return Math.round(AMMO_PACK_COST * (1 + (gunLevel - 1) * 0.6)); }
+// ammo crate size + pricing now live per-weapon in the WEAPONS registry; cost
+// scales with the weapon's level so a maxed gun can't endlessly restock cheaply.
+function weaponAmmoCost(w) { return Math.round(w.ammoBaseCost * (1 + (w.level - 1) * 0.6)); }
 const SHOP_ZONE_R = 3.4;
 let shopZone = null;             // { x, z, r } in front of the counter
 let shopOpen = false;
@@ -1288,78 +1294,59 @@ document.body.appendChild(shopScreen);
 const shopItemsEl = shopScreen.querySelector('#shop-items');
 const shopCashEl = shopScreen.querySelector('#shop-cash');
 
-// Per-gun catalog. Each weapon owns its own buy / upgrade / ammo actions so the
-// storefront stays organized as more guns get added — just append a def with its
-// state accessors (and wire its firing later). The pistol maps to the live
-// weapon globals; future guns are stubbed as `locked` until they're implemented.
-const GUN_DEFS = [
-  {
-    id: 'pistol', icon: '🔫', name: 'Pistol', tag: 'Reliable semi-auto sidearm',
-    cost: 0, ammoPack: AMMO_PACK, ammoCost: () => pistolAmmoCost(),
-    owned: () => hasGun,
-    level: () => gunLevel,
-    maxed: () => gunLevel >= GUN_MAX_LEVEL,
-    upCost: () => upgradeCost,
-    ammoNow: () => ammoReserve,
-    ammoMax: () => RESERVE_MAX,
-    buy: () => shopGetPistol(),
-    upgrade: () => shopUpgrade(),
-    ammo: () => shopBuyAmmo(),
-  },
-  { id: 'shotgun', icon: '💥', name: 'Shotgun', tag: 'Close-range spread — coming soon', locked: true },
-  { id: 'smg', icon: '⚡', name: 'SMG', tag: 'Rapid-fire bullet hose — coming soon', locked: true },
-];
-
-function buildGunCard(def) {
-  if (def.locked) {
-    return `<div class="gun-card locked"><div class="gun-head">` +
-      `<div class="gun-ic">${def.icon}</div>` +
-      `<div class="gun-meta"><div class="gun-name">${def.name}</div><div class="gun-tag">${def.tag}</div></div>` +
-      `<div class="gun-status">SOON</div></div></div>`;
-  }
-  const owned = def.owned();
-  const lvl = def.level();
+// The storefront is driven entirely by the WEAPONS registry (defined down in the
+// weapon section). Each gun gets its own card with buy / upgrade / restock / equip,
+// so adding a weapon is just adding a registry entry — no shop code changes needed.
+function buildGunCard(w) {
+  const owned = w.owned;
+  const lvl = w.level;
   const badge = owned ? `<span class="gun-badge">Mk.${lvl}</span>` : '';
+  const equippedTag = (owned && w.id === equipped)
+    ? `<span class="gun-badge" style="background:rgba(120,255,170,.22);color:#bfffd2">EQUIPPED</span>` : '';
   const status = owned
-    ? `<div class="gun-status">⦿ ${def.ammoNow()}/${def.ammoMax()}</div>`
-    : `<div class="gun-status price">${def.cost ? '$' + def.cost : 'FREE'}</div>`;
+    ? `<div class="gun-status">⦿ ${w.reserve}/${w.reserveMax}</div>`
+    : `<div class="gun-status price">${w.cost ? '$' + w.cost : 'FREE'}</div>`;
 
   let actions;
   if (!owned) {
-    const can = cash >= def.cost;
-    const label = def.cost ? `Buy — $${def.cost}` : 'Get for FREE';
-    actions = `<div class="gun-actions single"><button class="shop-buy" data-gun="${def.id}" data-act="buy"${can ? '' : ' disabled'}>${label}</button></div>`;
+    const can = cash >= w.cost;
+    const label = w.cost ? `Buy — $${w.cost}` : 'Get for FREE';
+    actions = `<div class="gun-actions single"><button class="shop-buy" data-gun="${w.id}" data-act="buy"${can ? '' : ' disabled'}>${label}</button></div>`;
   } else {
-    const maxed = def.maxed();
-    const upCost = def.upCost();
+    const maxed = w.level >= w.maxLevel;
     const upBtn = maxed
       ? `<button class="shop-buy" disabled>Fully Maxed</button>`
-      : `<button class="shop-buy" data-gun="${def.id}" data-act="upgrade"${cash >= upCost ? '' : ' disabled'}>Upgrade → Mk.${lvl + 1}<small>$${upCost}</small></button>`;
-    const full = def.ammoNow() >= def.ammoMax();
-    const ammoCost = def.ammoCost();
+      : `<button class="shop-buy" data-gun="${w.id}" data-act="upgrade"${cash >= w.upgradeCost ? '' : ' disabled'}>Upgrade → Mk.${lvl + 1}<small>$${w.upgradeCost}</small></button>`;
+    const full = w.reserve >= w.reserveMax;
+    const ammoCost = weaponAmmoCost(w);
     const ammoBtn = full
       ? `<button class="shop-buy alt" disabled>Ammo Full</button>`
-      : `<button class="shop-buy alt" data-gun="${def.id}" data-act="ammo"${cash >= ammoCost ? '' : ' disabled'}>Buy Ammo +${def.ammoPack}<small>$${ammoCost}</small></button>`;
-    actions = `<div class="gun-actions">${upBtn}${ammoBtn}</div>`;
+      : `<button class="shop-buy alt" data-gun="${w.id}" data-act="ammo"${cash >= ammoCost ? '' : ' disabled'}>Buy Ammo +${w.ammoPack}<small>$${ammoCost}</small></button>`;
+    const equipRow = (w.id === equipped)
+      ? ''
+      : `<div class="gun-actions single"><button class="shop-buy alt" data-gun="${w.id}" data-act="equip">Equip ${w.name}</button></div>`;
+    actions = `<div class="gun-actions">${upBtn}${ammoBtn}</div>${equipRow}`;
   }
   return `<div class="gun-card ${owned ? 'owned' : ''}"><div class="gun-head">` +
-    `<div class="gun-ic">${def.icon}</div>` +
-    `<div class="gun-meta"><div class="gun-name">${def.name}${badge}</div><div class="gun-tag">${def.tag}</div></div>` +
+    `<div class="gun-ic">${w.icon}</div>` +
+    `<div class="gun-meta"><div class="gun-name">${w.name}${badge}${equippedTag}</div><div class="gun-tag">${w.tag}</div></div>` +
     `${status}</div>${actions}</div>`;
 }
 function renderShop() {
+  if (WEAPONS[equipped].owned) saveEquipped();   // keep the live gun's record fresh
   shopCashEl.textContent = `💵 $${cash}`;
-  shopItemsEl.innerHTML = GUN_DEFS.map(buildGunCard).join('');
+  shopItemsEl.innerHTML = WEAPON_ORDER.map((id) => buildGunCard(WEAPONS[id])).join('');
 }
 shopItemsEl.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
   if (!b || b.disabled) return;
-  const def = GUN_DEFS.find((d) => d.id === b.dataset.gun);
-  if (!def) return;
+  const w = WEAPONS[b.dataset.gun];
+  if (!w) return;
   const act = b.dataset.act;
-  if (act === 'buy') def.buy();
-  else if (act === 'upgrade') def.upgrade();
-  else if (act === 'ammo') def.ammo();
+  if (act === 'buy') shopBuyWeapon(w);
+  else if (act === 'upgrade') shopUpgradeWeapon(w);
+  else if (act === 'ammo') shopBuyAmmoFor(w);
+  else if (act === 'equip') { equipWeapon(w.id); renderShop(); }
 });
 
 function openShop() {
@@ -1388,43 +1375,58 @@ function closeShop() {
   }
 }
 
-function shopGetPistol() {
-  if (hasGun) return;
-  pickupGunNow();
+function shopBuyWeapon(w) {
+  if (w.owned || cash < w.cost) return;
+  cash -= w.cost;
+  acquireWeapon(w);                 // marks owned, refills, equips, shows HUD
+  updateCashHUD();
+  sfx.pickup();
+  const ownedCount = WEAPON_ORDER.filter((k) => WEAPONS[k].owned).length;
+  const hint = ownedCount > 1 ? ' — press Q to swap weapons' : '';
+  toast(`${w.icon} ${w.cost ? 'Bought' : 'Unlocked'} the ${w.name}!${hint}`);
   renderShop();
 }
-function shopUpgrade() {
-  if (!hasGun || gunLevel >= GUN_MAX_LEVEL || cash < upgradeCost) return;
-  cash -= upgradeCost;
-  gunLevel++;
+function shopUpgradeWeapon(w) {
+  if (!w.owned || w.level >= w.maxLevel || cash < w.upgradeCost) return;
+  cash -= w.upgradeCost;
+  if (w.id === equipped) saveEquipped();   // capture live ammo before mutating the record
+  w.level++;
   // weighted-random gains: usually a small bump, occasionally a jackpot.
   const roll = Math.pow(Math.random(), 2.4);
-  const dmgGain = Math.round((0.5 + roll * 5.5) * 10) / 10; // +0.5 .. +6.0 dmg
-  const magGain = Math.round(2 + roll * 16);                // +2 .. +18 mag
-  gunDamage = Math.round((gunDamage + dmgGain) * 10) / 10;
-  MAG_SIZE += magGain;
-  RESERVE_MAX += magGain * 3;
-  ammo = MAG_SIZE;
-  ammoReserve = RESERVE_MAX;      // upgrading fully restocks your ammo
-  upgradeCost = Math.round(upgradeCost * 1.8);
+  const dmgGain = Math.round((0.5 + roll * 5.5) * 10) / 10;       // +0.5 .. +6.0 dmg
+  // shotgun mags are small by design, so they grow far slower than the pistol's
+  const magGain = w.id === 'shotgun' ? Math.max(1, Math.round(roll * 2)) : Math.round(2 + roll * 16);
+  w.damage = Math.round((w.damage + dmgGain) * 10) / 10;
+  w.magSize += magGain;
+  w.reserveMax += magGain * (w.id === 'shotgun' ? 6 : 3);
+  w.ammo = w.magSize;
+  w.reserve = w.reserveMax;          // upgrading fully restocks
+  w.upgradeCost = Math.round(w.upgradeCost * 1.8);
+  // the shotgun also tightens its pattern and occasionally packs more pellets
+  let pelletNote = '';
+  if (w.id === 'shotgun') {
+    if (roll > 0.5 && w.pellets < 14) { w.pellets++; pelletNote = `, +1 pellet (${w.pellets})`; }
+    w.spread = Math.max(0.045, Math.round(w.spread * 0.9 * 1000) / 1000);
+  }
+  if (w.id === equipped) loadEquipped();   // push the new stats into the live gun
   updateCashHUD();
   updateWeaponHUD();
-  applyGunSkin(playerGun, gunLevel);
-  applyGunSkin(fpGun, gunLevel);
   sfx.upgrade();
   const tier = roll > 0.65 ? '💥 JACKPOT UPGRADE!' : roll > 0.3 ? '✨ Solid upgrade' : '⚙️ Upgraded';
-  toast(`${tier} Mk.${gunLevel} — +${dmgGain} dmg, +${magGain} mag • ammo refilled`);
+  toast(`${tier} ${w.name} Mk.${w.level} — +${dmgGain} dmg${pelletNote} • ammo refilled`);
   renderShop();
 }
-function shopBuyAmmo() {
-  const price = pistolAmmoCost();
-  if (!hasGun || ammoReserve >= RESERVE_MAX || cash < price) return;
+function shopBuyAmmoFor(w) {
+  const price = weaponAmmoCost(w);
+  if (!w.owned || w.reserve >= w.reserveMax || cash < price) return;
   cash -= price;
-  ammoReserve = Math.min(RESERVE_MAX, ammoReserve + AMMO_PACK);
+  if (w.id === equipped) saveEquipped();
+  w.reserve = Math.min(w.reserveMax, w.reserve + w.ammoPack);
+  if (w.id === equipped) loadEquipped();
   updateCashHUD();
   updateWeaponHUD();
   sfx.pickup();
-  toast(`📦 +${AMMO_PACK} rounds`);
+  toast(`📦 +${w.ammoPack} ${w.name} rounds`);
   renderShop();
 }
 
@@ -2079,7 +2081,8 @@ function updateBoostHUD() {
 function updateWeaponHUD() {
   const mag = reloading ? '· · ·' : ammo;
   const low = ammoReserve === 0 && ammo === 0;
-  ammoPill.innerHTML = `🔫 <span>${mag}</span> <span style="opacity:.6">| ${ammoReserve}</span>`;
+  const icon = (typeof WEAPONS !== 'undefined' && WEAPONS[equipped]) ? WEAPONS[equipped].icon : '🔫';
+  ammoPill.innerHTML = `${icon} <span>${mag}</span> <span style="opacity:.6">| ${ammoReserve}</span>`;
   ammoPill.style.color = low ? '#ff6b6b' : '';
   elimPill.innerHTML = `💀 <span>${eliminations}</span>`;
 }
@@ -2141,18 +2144,46 @@ function makePistol(scale = 1) {
   return g;
 }
 
+// pump shotgun — chunkier and longer than the pistol; uses the same gunPart tags
+// so applyGunSkin() recolors it through the shared upgrade-tier palette.
+function makeShotgun(scale = 1) {
+  const g = new THREE.Group();
+  const metal = mat(0x23262b, 0.4);
+  const dark = mat(0x14161a, 0.5);
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0x555b66, roughness: 0.28, metalness: 0.15, emissive: 0x000000, emissiveIntensity: 0 });
+  const recv = mesh(new THREE.BoxGeometry(0.2, 0.3, 0.66), metal.clone()); recv.position.set(0, 0.08, -0.02); recv.userData.gunPart = 'slide'; g.add(recv);
+  const barrel = mesh(new THREE.BoxGeometry(0.14, 0.17, 1.5), dark.clone()); barrel.position.set(0, 0.14, 0.72); barrel.userData.gunPart = 'barrel'; g.add(barrel);
+  const tube = mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4, 10), dark.clone()); tube.rotation.x = Math.PI / 2; tube.position.set(0, 0.0, 0.68); tube.userData.gunPart = 'barrel'; g.add(tube);
+  // pump fore-grip (accent — slides visually as a tier color)
+  const pump = mesh(new THREE.BoxGeometry(0.19, 0.15, 0.32), accentMat.clone(), false, false); pump.position.set(0, 0.0, 0.52); pump.userData.gunPart = 'accent'; g.add(pump);
+  // shoulder stock + pistol grip
+  const stock = mesh(new THREE.BoxGeometry(0.16, 0.32, 0.5), dark.clone()); stock.position.set(0, -0.04, -0.52); stock.rotation.x = 0.1; stock.userData.gunPart = 'grip'; g.add(stock);
+  const grip = mesh(new THREE.BoxGeometry(0.14, 0.32, 0.18), dark.clone()); grip.position.set(0, -0.2, -0.18); grip.rotation.x = 0.34; grip.userData.gunPart = 'grip'; g.add(grip);
+  // top rail accent for the upgrade glow
+  const rail = mesh(new THREE.BoxGeometry(0.05, 0.05, 1.0), accentMat.clone(), false, false); rail.position.set(0, 0.27, 0.5); rail.userData.gunPart = 'accent'; g.add(rail);
+  g.scale.setScalar(scale);
+  g.children.forEach((m) => (m.castShadow = true));
+  return g;
+}
+
 // (the pistol now lives on the weapon-shop counter — see the shop block above)
 
-// --- gun held by the player (hidden until picked up) ---
-const playerGun = makePistol(0.85);
-playerGun.position.set(0.55, 1.25, 0.5);
-playerGun.visible = false;
-player.group.add(playerGun);
+// --- guns held by the player (hidden until picked up). Both models live in a
+// holder and we just toggle visibility on the equipped one, so swapping weapons
+// is instant and the muzzle/recoil anchors stay valid. ---
+const gunHolder = new THREE.Group();
+gunHolder.position.set(0.55, 1.25, 0.5);
+gunHolder.visible = false;
+player.group.add(gunHolder);
+const tpPistol = makePistol(0.85);
+const tpShotgun = makeShotgun(0.85);
+tpShotgun.visible = false;
+gunHolder.add(tpPistol, tpShotgun);
 const muzzlePoint = new THREE.Object3D();
-muzzlePoint.position.set(0, 0.1, 0.75);
-playerGun.add(muzzlePoint);
+muzzlePoint.position.set(0, 0.1, 0.85);
+gunHolder.add(muzzlePoint);
 
-// --- first-person viewmodel: a flipper-arm holding the pistol (COD style) ---
+// --- first-person viewmodel: a flipper-arm holding the gun (COD style) ---
 scene.add(camera); // so camera-attached viewmodel renders
 const fpViewmodel = new THREE.Group();
 fpViewmodel.visible = false;
@@ -2163,18 +2194,112 @@ const fpArm = mesh(new THREE.BoxGeometry(0.16, 0.16, 0.62), fpArmMat, false, fal
 fpArm.position.set(0.05, -0.05, -0.34);
 const fpHand = mesh(new THREE.BoxGeometry(0.2, 0.2, 0.22), fpArmMat, false, false);
 fpHand.position.set(0, -0.02, -0.62);
-// the gun itself
-const fpGun = makePistol(0.95);
-fpGun.position.set(0, 0, -0.55);
-fpGun.rotation.y = Math.PI; // point it forward (away from camera)
+// the guns themselves
+const fpPistol = makePistol(0.95);
+fpPistol.position.set(0, 0, -0.55);
+fpPistol.rotation.y = Math.PI; // point it forward (away from camera)
+const fpShotgun = makeShotgun(0.95);
+fpShotgun.position.set(0, 0.02, -0.7);
+fpShotgun.rotation.y = Math.PI;
+fpShotgun.visible = false;
 const fpMuzzle = new THREE.Object3D();
 fpMuzzle.position.set(0, 0.1, -0.95);
-fpViewmodel.add(fpArm, fpHand, fpGun, fpMuzzle);
+fpViewmodel.add(fpArm, fpHand, fpPistol, fpShotgun, fpMuzzle);
 // rest pose in the lower-right of the view
 const FP_REST = new THREE.Vector3(0.28, -0.26, -0.5);
 fpViewmodel.position.copy(FP_REST);
 fpViewmodel.traverse((m) => { if (m.isMesh) { m.renderOrder = 999; m.material.depthTest = true; } });
 let fpBob = 0;
+
+// ---------------------------------------------------------------------
+//  Weapon registry: each gun keeps its own persistent stats. The classic
+//  pistol globals (ammo / MAG_SIZE / gunDamage / …) act as the LIVE mirror of
+//  whatever's equipped; switching saves the current globals back to the record
+//  and loads the next one's. Adding a gun = adding a registry entry (+ a model).
+// ---------------------------------------------------------------------
+const WEAPONS = {
+  pistol: {
+    id: 'pistol', icon: '🔫', name: 'Pistol', tag: 'Reliable semi-auto sidearm',
+    cost: 0, maxLevel: GUN_MAX_LEVEL, owned: false, level: 1,
+    damage: 1, magSize: 12, reserveMax: 96, ammo: 12, reserve: 36, upgradeCost: 500,
+    pellets: 1, spread: 0, fireInterval: 0.25, falloff: { near: 16, far: 60, min: 0.4 },
+    ammoPack: 40, ammoBaseCost: 120,
+  },
+  shotgun: {
+    id: 'shotgun', icon: '💥', name: 'Shotgun', tag: 'Close-range spread cannon — devastating up close',
+    cost: 1100, maxLevel: GUN_MAX_LEVEL, owned: false, level: 1,
+    damage: 5, magSize: 5, reserveMax: 40, ammo: 5, reserve: 20, upgradeCost: 850,
+    pellets: 8, spread: 0.12, fireInterval: 0.72, falloff: { near: 7, far: 24, min: 0.14 },
+    ammoPack: 16, ammoBaseCost: 220,
+  },
+};
+const WEAPON_ORDER = ['pistol', 'shotgun'];
+let equipped = 'pistol';
+// firing characteristics of the equipped gun, read by fire()/damageFalloff()
+let curPellets = 1;
+let curSpread = 0;
+let curFalloff = WEAPONS.pistol.falloff;
+
+function activeTPGun() { return equipped === 'shotgun' ? tpShotgun : tpPistol; }
+function activeFPGun() { return equipped === 'shotgun' ? fpShotgun : fpPistol; }
+function setActiveGunModel(id) {
+  tpPistol.visible = id === 'pistol';
+  tpShotgun.visible = id === 'shotgun';
+  fpPistol.visible = id === 'pistol';
+  fpShotgun.visible = id === 'shotgun';
+}
+// write the live globals back into the equipped weapon's record
+function saveEquipped() {
+  const w = WEAPONS[equipped];
+  w.level = gunLevel; w.damage = gunDamage; w.magSize = MAG_SIZE;
+  w.ammo = ammo; w.reserve = ammoReserve; w.reserveMax = RESERVE_MAX; w.upgradeCost = upgradeCost;
+}
+// load the equipped weapon's record into the live globals + swap visuals/HUD
+function loadEquipped() {
+  const w = WEAPONS[equipped];
+  gunLevel = w.level; gunDamage = w.damage; MAG_SIZE = w.magSize;
+  ammo = w.ammo; ammoReserve = w.reserve; RESERVE_MAX = w.reserveMax; upgradeCost = w.upgradeCost;
+  hasGun = w.owned;
+  curPellets = w.pellets; curSpread = w.spread; curFalloff = w.falloff; FIRE_INTERVAL = w.fireInterval;
+  reloading = false; reloadT = 0;
+  setActiveGunModel(equipped);
+  gunHolder.visible = w.owned;
+  applyGunSkin(activeTPGun(), gunLevel);
+  applyGunSkin(activeFPGun(), gunLevel);
+  updateWeaponHUD();
+}
+function ensureGunHUD() {
+  ammoPill.style.display = '';
+  elimPill.style.display = '';
+  ui.crosshair.style.borderColor = 'rgba(255,70,70,.95)';
+  ui.crosshair.style.boxShadow = '0 0 0 2px rgba(0,0,0,.2), 0 0 10px rgba(255,40,40,.6)';
+  updateWeaponHUD();
+}
+// mark a weapon owned, top it up, equip it and reveal the HUD
+function acquireWeapon(w) {
+  w.owned = true;
+  w.ammo = w.magSize;
+  if (w.id === equipped) loadEquipped();
+  else equipWeapon(w.id);
+  ensureGunHUD();
+  // hide the floating pistol pickup once the pistol is owned
+  if (w.id === 'pistol' && gunPickupRec) gunPickupRec.obj.visible = false;
+}
+function equipWeapon(id) {
+  const w = WEAPONS[id];
+  if (!w || !w.owned || id === equipped) return;
+  saveEquipped();
+  equipped = id;
+  loadEquipped();
+  sfx.swap();
+  toast(`${w.icon} ${w.name} Mk.${w.level}`);
+}
+function cycleWeapon() {
+  const owned = WEAPON_ORDER.filter((k) => WEAPONS[k].owned);
+  if (owned.length < 2) return;
+  const i = owned.indexOf(equipped);
+  equipWeapon(owned[(i + 1) % owned.length]);
+}
 
 // --- muzzle flash sprite ---
 const flashTex = (() => {
@@ -2196,7 +2321,7 @@ let recoil = 0;
 // hold-to-fire: holding the shoot button auto-fires at a steady COD-like cadence
 let firing = false;
 let fireCooldown = 0;
-const FIRE_INTERVAL = 0.25;     // 4 rounds/sec while holding
+let FIRE_INTERVAL = 0.25;     // per-weapon cadence; set by loadEquipped()
 // reload timing (frame-driven so the FP animation + crosshair ring can track it)
 let reloadT = 0;
 const RELOAD_DUR = 0.9;
@@ -2245,34 +2370,16 @@ const tracers = [];
 const bloodBits = [];
 const bloodPools = [];
 
-function pickupGunNow() {
-  hasGun = true;
-  playerGun.visible = true;
-  applyGunSkin(playerGun, gunLevel);
-  applyGunSkin(fpGun, gunLevel);
-  if (gunPickupRec) gunPickupRec.obj.visible = false;
-  ammo = MAG_SIZE;
-  ammoPill.style.display = '';
-  elimPill.style.display = '';
-  updateWeaponHUD();
-  // make the crosshair an aggressive red reticle
-  ui.crosshair.style.borderColor = 'rgba(255,70,70,.95)';
-  ui.crosshair.style.boxShadow = '0 0 0 2px rgba(0,0,0,.2), 0 0 10px rgba(255,40,40,.6)';
-  sfx.pickup();
-  toast('🔫 Picked up the PISTOL — Click to fire, R to reload');
-}
-
 const _ray = new THREE.Ray();
 const _tmp = new THREE.Vector3();
-// pistol damage drop-off: full power up close, tapering to a floor at range
-const DMG_NEAR = 16;     // full damage within this many units
-const DMG_FAR = 60;      // minimum damage beyond this range
-const DMG_MIN = 0.4;     // floor multiplier at long range
+// damage drop-off uses the equipped weapon's falloff band: full power up close,
+// tapering to a floor at range. Shotguns fall off hard; the pistol stays useful.
 function damageFalloff(dist) {
-  if (dist <= DMG_NEAR) return 1;
-  if (dist >= DMG_FAR) return DMG_MIN;
-  const f = (dist - DMG_NEAR) / (DMG_FAR - DMG_NEAR); // 0→1 across the band
-  return 1 - (1 - DMG_MIN) * f;
+  const f = curFalloff;
+  if (dist <= f.near) return 1;
+  if (dist >= f.far) return f.min;
+  const k = (dist - f.near) / (f.far - f.near); // 0→1 across the band
+  return 1 - (1 - f.min) * k;
 }
 
 // Manual clicks fire immediately; holding uses a separate cooldown so fast
@@ -2287,6 +2394,10 @@ function requestFire(manual = false) {
   }
 }
 
+const _muzzleWorld = new THREE.Vector3();
+const _aimDir = new THREE.Vector3();
+const _spreadA = new THREE.Vector3();
+const _spreadB = new THREE.Vector3();
 function fire() {
   if (reloading) return;
   if (ammo <= 0) {
@@ -2297,24 +2408,51 @@ function fire() {
   ammo--;
   localFireSeq++;
   updateWeaponHUD();
-  sfx.shot();
+  const isShotgun = curPellets > 1;
+  isShotgun ? sfx.shotgun() : sfx.shot();
   if (ammo === 0 && ammoReserve > 0) reloadGun(); // auto-reload when the mag runs dry
-  recoil = 0.5;
-  muzzleTimer = 0.05;
+  recoil = isShotgun ? 0.95 : 0.5;
+  muzzleTimer = isShotgun ? 0.08 : 0.05;
 
   const ar = aimRay();
-  _ray.origin.copy(ar.origin);
-  _ray.direction.copy(ar.direction);
+  (firstPerson ? fpMuzzle : muzzlePoint).getWorldPosition(_muzzleWorld);
+  muzzleFlash.position.copy(_muzzleWorld);
+  muzzleFlash.scale.set(isShotgun ? 1.7 : 1.1, isShotgun ? 1.7 : 1.1, 1);
+  muzzleFlash.visible = true;
 
-  // hitscan against whichever entities this machine owns: the host/solo client
-  // tests real NPCs; a network client tests the host's ghost zombies.
+  // build two axes perpendicular to the aim so each pellet scatters in a cone
+  _aimDir.copy(ar.direction).normalize();
+  _spreadA.set(0, 1, 0).cross(_aimDir);
+  if (_spreadA.lengthSq() < 1e-4) _spreadA.set(1, 0, 0);
+  _spreadA.normalize();
+  _spreadB.copy(_aimDir).cross(_spreadA).normalize();
+
   const isClient = netRole() === 'client';
-  // a wall on the aim ray blocks the shot — penguins behind cover can't be hit
+  // shotgun blasts spray a lot of blood; trim per-pellet bursts so it stays snappy
+  const bloodPer = isShotgun ? 5 : 22;
+  let headshotShown = false;
+  for (let p = 0; p < curPellets; p++) {
+    const dir = _aimDir.clone();
+    if (curSpread > 0) {
+      // gaussian-ish scatter biased toward center, mostly within the cone
+      const a = (Math.random() + Math.random() - 1) * curSpread;
+      const b = (Math.random() + Math.random() - 1) * curSpread;
+      dir.addScaledVector(_spreadA, a).addScaledVector(_spreadB, b).normalize();
+    }
+    headshotShown = firePellet(ar.origin, dir, isClient, bloodPer, !headshotShown) || headshotShown;
+  }
+}
+
+// one hitscan ray: find the nearest enemy it strikes, apply damage + FX + tracer.
+// returns true if a headshot floattext was shown (so multi-pellet shots show one).
+function firePellet(origin, dir, isClient, bloodPer, allowHsText) {
+  _ray.origin.copy(origin);
+  _ray.direction.copy(dir);
   const wallDist = raySolidDist(_ray, 120);
   let best = null, bestAlong = Infinity, bestCenter = null, bestScale = 1, bestType = '', bestNid = 0;
   if (isClient) {
     for (const [nid, g] of ghosts) {
-      if (g.dead) continue;
+      if (g.dead || g.predDead) continue;
       const p = g.pen.group.position;
       const s = g.scale || 1;
       const center = _tmp.set(p.x, p.y + 1.2 * s, p.z);
@@ -2339,11 +2477,7 @@ function fire() {
     }
   }
 
-  const muzzleWorld = new THREE.Vector3();
-  (firstPerson ? fpMuzzle : muzzlePoint).getWorldPosition(muzzleWorld);
-  muzzleFlash.position.copy(muzzleWorld);
-  muzzleFlash.visible = true;
-
+  let shownHs = false;
   let endPoint;
   if (best) {
     endPoint = bestCenter;
@@ -2352,22 +2486,22 @@ function fire() {
     const headshot = bestType !== 'boss' && onRay.y >= groupY + 1.7 * bestScale;
     const dmg = gunDamage * (headshot ? 2 : 1) * damageFalloff(bestAlong);
     if (isClient) {
-      // report to the host (per-hit id so nothing is dropped) and predict the
-      // result locally so the enemy reacts NOW instead of a round-trip later
       hitOut.push({ hid: ++localHitId, nid: bestNid, dmg, hs: headshot });
-      if (hitOut.length > 24) hitOut.shift();
+      if (hitOut.length > 48) hitOut.shift();
       predictGhostHit(best, dmg);
-      spawnBloodBurst(bestCenter.clone(), _ray.direction.clone());
+      spawnBloodBurst(bestCenter.clone(), _ray.direction.clone(), bloodPer);
       showHitMarker(false);
       sfx.hit();
-      if (headshot) floatText('HEADSHOT', bestCenter.clone(), '#ffd23f', 18);
+      if (headshot && allowHsText) { floatText('HEADSHOT', bestCenter.clone(), '#ffd23f', 18); shownHs = true; }
     } else {
       damageNPC(best, dmg, bestCenter.clone(), headshot, mpMyId(), _ray.direction.clone());
+      if (headshot && allowHsText) shownHs = true;
     }
   } else {
     endPoint = _ray.at(Math.min(wallDist, 80), new THREE.Vector3());
   }
-  spawnTracer(muzzleWorld, endPoint);
+  spawnTracer(_muzzleWorld, endPoint);
+  return shownHs;
 }
 
 function reloadGun() {
@@ -2375,9 +2509,11 @@ function reloadGun() {
   if (ammoReserve <= 0) { sfx.dryFire(); toast('Out of ammo! Grab some from the fallen.'); return; }
   reloading = true;
   reloadT = 0;
+  const reloadWpn = equipped;     // if they swap guns mid-reload, abandon this one
   updateWeaponHUD();
   sfx.reload();
   setTimeout(() => {
+    if (!reloading || equipped !== reloadWpn) return;   // swapped or already resolved
     const need = MAG_SIZE - ammo;
     const take = Math.min(need, ammoReserve);
     ammo += take;
@@ -2394,8 +2530,8 @@ function spawnTracer(a, b) {
   tracers.push({ line, life: 0 });
 }
 
-function spawnBloodBurst(point, dir = null) {
-  for (let i = 0; i < 22; i++) {
+function spawnBloodBurst(point, dir = null, count = 22) {
+  for (let i = 0; i < count; i++) {
     const r = 0.05 + Math.random() * 0.1;
     const b = mesh(new THREE.SphereGeometry(r, 6, 6), new THREE.MeshStandardMaterial({ color: 0x9e0606, roughness: 0.6 }), false, false);
     b.position.copy(point);
@@ -2922,7 +3058,7 @@ function updateWeapons(dt) {
 
   // recoil + muzzle flash
   recoil = Math.max(0, recoil - dt * 4);
-  playerGun.rotation.x = -recoil;
+  gunHolder.rotation.x = -recoil;
 
   // first-person viewmodel: show only when zoomed in & armed (never while spectating)
   fpViewmodel.visible = firstPerson && hasGun && !spectating;
@@ -3779,6 +3915,7 @@ document.addEventListener('keydown', (e) => {
   if (!started) return;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyR' && hasGun) reloadGun();
+  if (e.code === 'KeyQ') cycleWeapon();
   if (e.code === 'KeyE') tryInteractGameObjects();
   if (e.code === 'KeyM') toast(sfx.toggle() ? '🔊 Sound on' : '🔇 Sound muted');
   const idx = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
@@ -4096,13 +4233,33 @@ function ensureRemote(id, s) {
   const tag = makeNameTag(s.name || 'Penguin', color);
   world.add(tag);
 
-  const gun = makePistol(0.85);
-  gun.position.set(0.55, 1.25, 0.5);
-  gun.visible = false;
-  applyGunSkin(gun, s.gl ?? 1);
-  pen.group.add(gun);
+  // holder with both gun models; we toggle the one matching their equipped weapon
+  const gunHolderR = new THREE.Group();
+  gunHolderR.position.set(0.55, 1.25, 0.5);
+  gunHolderR.visible = false;
+  const rPistol = makePistol(0.85);
+  const rShotgun = makeShotgun(0.85);
+  rShotgun.visible = false;
+  applyGunSkin(rPistol, s.gl ?? 1);
+  applyGunSkin(rShotgun, s.gl ?? 1);
+  gunHolderR.add(rPistol, rShotgun);
+  const rMuzzle = new THREE.Object3D();   // barrel tip, for tracers + flash origin
+  rMuzzle.position.set(0, 0.1, 0.95);
+  gunHolderR.add(rMuzzle);
+  pen.group.add(gunHolderR);
 
-  rp = { pen, tag, gun, gunLevel: s.gl ?? 1, phase: 0, lastFire: s.fireSeq || 0, lastEmote: s.emoteSeq || 0, color, name: s.name, down: false };
+  // each remote gets its own muzzle-flash sprite so their shots read at a distance
+  const rFlash = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  rFlash.scale.set(1.1, 1.1, 1);
+  rFlash.visible = false;
+  world.add(rFlash);
+
+  rp = {
+    pen, tag, gunHolder: gunHolderR, rPistol, rShotgun, gun: rPistol, muzzle: rMuzzle,
+    flash: rFlash, flashT: 0, recoil: 0, reloading: false, gunBaseY: 1.25,
+    wpn: 'pistol', gunLevel: s.gl ?? 1, phase: 0, lastFire: s.fireSeq || 0, lastEmote: s.emoteSeq || 0,
+    color, name: s.name, down: false,
+  };
   remotePlayers.set(id, rp);
   return rp;
 }
@@ -4120,18 +4277,37 @@ function removeRemote(id) {
   if (!rp) return;
   world.remove(rp.pen.group);
   world.remove(rp.tag);
+  if (rp.flash) world.remove(rp.flash);
   remotePlayers.delete(id);
 }
 
+// replay a remote player's shot for observers: tracer(s) + a kick + muzzle flash,
+// so other clients' guns visibly recoil and flash instead of silently teleporting
+// bullets. Shotguns spray a few spread tracers to sell the blast.
 function remoteFire(rp) {
   const muzzle = new THREE.Vector3();
-  rp.gun.getWorldPosition(muzzle);
+  (rp.muzzle || rp.gun).getWorldPosition(muzzle);
   const ry = rp.pen.group.rotation.y;
   const p = rp.lookPitch || 0;
   const cp = Math.cos(p);
-  const dir = new THREE.Vector3(Math.sin(ry) * cp, -Math.sin(p), Math.cos(ry) * cp);
-  const end = muzzle.clone().add(dir.multiplyScalar(70));
-  spawnTracer(muzzle, end);
+  const baseDir = new THREE.Vector3(Math.sin(ry) * cp, -Math.sin(p), Math.cos(ry) * cp);
+  const shotgun = rp.wpn === 'shotgun';
+  const shots = shotgun ? 5 : 1;
+  for (let i = 0; i < shots; i++) {
+    const dir = baseDir.clone();
+    if (shotgun) {
+      dir.x += (Math.random() - 0.5) * 0.2;
+      dir.y += (Math.random() - 0.5) * 0.13;
+      dir.z += (Math.random() - 0.5) * 0.2;
+      dir.normalize();
+    }
+    spawnTracer(muzzle, muzzle.clone().add(dir.multiplyScalar(70)));
+  }
+  rp.recoil = shotgun ? 0.95 : 0.5;
+  rp.flash.position.copy(muzzle);
+  rp.flash.scale.set(shotgun ? 1.7 : 1.1, shotgun ? 1.7 : 1.1, 1);
+  rp.flash.visible = true;
+  rp.flashT = shotgun ? 0.08 : 0.05;
 }
 
 function pushLocalState() {
@@ -4155,6 +4331,8 @@ function pushLocalState() {
     mv: moving,
     hasGun,
     gl: gunLevel,
+    wpn: equipped,
+    rl: reloading,
     down: spectating,
     frozen: frozenTimer > 0,
     hp: Math.ceil(playerHP),
@@ -4181,7 +4359,15 @@ function updateRemotePlayers(dt, t) {
     const remoteGunLevel = s.gl ?? 1;
     if (remoteGunLevel !== rp.gunLevel) {
       rp.gunLevel = remoteGunLevel;
-      applyGunSkin(rp.gun, remoteGunLevel);
+      applyGunSkin(rp.rPistol, remoteGunLevel);
+      applyGunSkin(rp.rShotgun, remoteGunLevel);
+    }
+    const remoteWpn = s.wpn === 'shotgun' ? 'shotgun' : 'pistol';
+    if (remoteWpn !== rp.wpn) {
+      rp.wpn = remoteWpn;
+      rp.rPistol.visible = remoteWpn === 'pistol';
+      rp.rShotgun.visible = remoteWpn === 'shotgun';
+      rp.gun = remoteWpn === 'shotgun' ? rp.rShotgun : rp.rPistol;
     }
     const g = rp.pen.group;
     const k = 1 - Math.exp(-12 * dt);
@@ -4203,7 +4389,7 @@ function updateRemotePlayers(dt, t) {
     }
 
     rp.tag.position.set(g.position.x, g.position.y + 3.0, g.position.z);
-    rp.gun.visible = !!s.hasGun && !rp.down;
+    rp.gunHolder.visible = !!s.hasGun && !rp.down;
 
     if (s.fireSeq && s.fireSeq !== rp.lastFire) {
       rp.lastFire = s.fireSeq;
@@ -4212,6 +4398,24 @@ function updateRemotePlayers(dt, t) {
     if (s.emoteSeq && s.emoteSeq !== rp.lastEmote) {
       rp.lastEmote = s.emoteSeq;
       showEmote(g, s.emote || '👋', 3.0);
+    }
+
+    // gun kick + reload dip + fading muzzle flash — replicated so teammates and
+    // the host actually SEE this player's weapon recoil and reload, not just a tracer
+    rp.recoil = Math.max(0, (rp.recoil || 0) - dt * 4);
+    const reloadingNow = !!s.rl && !!s.hasGun && !rp.down;
+    if (reloadingNow) {
+      const kk = 1 - Math.exp(-10 * dt);
+      rp.gunHolder.rotation.x = THREE.MathUtils.lerp(rp.gunHolder.rotation.x, 0.7, kk);
+      rp.gunHolder.position.y = THREE.MathUtils.lerp(rp.gunHolder.position.y, rp.gunBaseY - 0.22, kk);
+    } else {
+      rp.gunHolder.rotation.x = -rp.recoil;
+      rp.gunHolder.position.y = THREE.MathUtils.lerp(rp.gunHolder.position.y, rp.gunBaseY, 1 - Math.exp(-14 * dt));
+    }
+    if (rp.flashT > 0) {
+      rp.flashT -= dt;
+      rp.flash.material.rotation = Math.random() * Math.PI;
+      if (rp.flashT <= 0) rp.flash.visible = false;
     }
   });
   // drop anyone we no longer hear from (covers reloads / missed onQuit)
@@ -5538,7 +5742,7 @@ function rebuildSolid() {
 function syncSceneRefs() {
   shopRec = placedObjects.find((r) => r.def.type === 'shop') || null;
   gunPickupRec = placedObjects.find((r) => r.def.type === 'gunpickup') || null;
-  if (gunPickupRec) gunPickupRec.obj.visible = !hasGun;
+  if (gunPickupRec) gunPickupRec.obj.visible = !WEAPONS.pistol.owned;
   computeShopZone();
 }
 
